@@ -223,9 +223,13 @@ git push -u origin main
 
 Then **Settings → Pages → deploy from `main`, root**.
 
-Caveat: `.gitignore` excludes `data/fires/` and `data/corine/`, which the app
-needs at runtime. For Pages, either commit them (add `-f`) or run the build
-step in a GitHub Action.
+`data/fires/` **is committed** precisely so Pages works with no build step —
+1,639 files, 12 MB total, comfortably inside GitHub's limits. Only
+`data/fires-detail.geojson` (an intermediate) and `data/corine/` are ignored.
+
+Serving from a subpath (`user.github.io/peatprobe/`) is tested and works: every
+path in the app is relative, so the service worker scope, manifest and per-fire
+files all resolve correctly.
 
 ### Firebase Hosting
 
