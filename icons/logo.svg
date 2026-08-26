@@ -22,9 +22,12 @@
       <stop offset="0" stop-color="#2E3192"/>
       <stop offset="1" stop-color="#1B1B4D"/>
     </linearGradient>
-    <linearGradient id="pp-wood" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#B4623A"/>
-      <stop offset="1" stop-color="#7A3B2E"/>
+    <!-- userSpaceOnUse: the stem is a vertical line, so its object bounding
+         box has zero width and a default objectBoundingBox gradient would
+         not paint at all. -->
+    <linearGradient id="pp-wood" gradientUnits="userSpaceOnUse" x1="0" y1="30" x2="0" y2="95">
+      <stop offset="0" stop-color="#C06E42"/>
+      <stop offset="1" stop-color="#6E3529"/>
     </linearGradient>
   </defs>
 
