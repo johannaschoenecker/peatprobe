@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<title>PeatProbe — peat burn depth survey</title>
+<meta name="description" content="Citizen science app for recording peat burn depth after wildfires in the UK.">
+<meta name="theme-color" content="#2C221A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="vendor/markercluster/MarkerCluster.css">
+<link rel="stylesheet" href="vendor/markercluster/MarkerCluster.Default.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <img src="icons/logo.svg" alt="" class="topbar__logo" width="32" height="32">
+  <h1 class="topbar__title">PeatProbe</h1>
+  <div class="topbar__status">
+    <span id="net-pill" class="pill" data-state="online">online</span>
+    <button id="sync-pill" class="pill pill--btn" hidden></button>
+  </div>
+</header>
+
+<main>
+  <!-- ══════════ MAP ══════════ -->
+  <section id="view-map" class="view is-active">
+    <div id="map"></div>
+    <div class="map-overlay">
+      <button id="btn-locate" class="fab fab--ghost" title="Centre on my location" aria-label="Centre on my location">◎</button>
+      <button id="btn-add" class="fab fab--primary" title="Record a measurement">+ Record</button>
+    </div>
+    <div id="map-hint" class="map-hint" hidden></div>
+  </section>
+
+  <!-- ══════════ FIRES / PACKS ══════════ -->
+  <section id="view-fires" class="view">
+    <div class="pane">
+      <h2>Field packs</h2>
+      <p class="muted">Download a fire before you head out. Packs work with no signal.</p>
+      <div class="storage-bar"><div id="storage-fill"></div></div>
+      <p class="muted small" id="storage-text">Calculating storage…</p>
+      <label class="field">
+        <span>Find a fire</span>
+        <input type="search" id="fire-search" placeholder="Place, council area or fire ID">
+      </label>
+      <div class="row">
+        <button id="btn-near-me" class="btn btn--sm">Fires near me</button>
+        <button id="btn-show-downloaded" class="btn btn--sm">Downloaded only</button>
+      </div>
+      <ul id="fire-list" class="fire-list"></ul>
+    </div>
+  </section>
+
+  <!-- ══════════ MY DATA ══════════ -->
+  <section id="view-data" class="view">
+    <div class="pane">
+      <h2>My measurements</h2>
+      <div class="row">
+        <button id="btn-sync" class="btn btn--primary">Sync now</button>
+        <button id="btn-export" class="btn">Export CSV</button>
+      </div>
+      <p class="muted small" id="sync-note"></p>
+      <ul id="point-list" class="point-list"></ul>
+    </div>
+  </section>
+
+  <!-- ══════════ INFO ══════════ -->
+  <section id="view-info" class="view">
+    <div class="pane prose" id="info-pane"></div>
+  </section>
+</main>
+
+<nav class="tabbar">
+  <button class="tab is-active" data-view="map"><span>🗺️</span>Map</button>
+  <button class="tab" data-view="fires"><span>⬇️</span>Packs</button>
+  <button class="tab" data-view="data"><span>📋</span>My data</button>
+  <button class="tab" data-view="info"><span>ℹ️</span>Info</button>
+</nav>
+
+<!-- ══════════ RECORD FORM ══════════ -->
+<dialog id="point-dialog" class="sheet">
+  <form id="point-form" method="dialog">
+    <header class="sheet__head">
+      <h2>Record measurement</h2>
+      <button type="button" id="form-close" class="icon-btn" aria-label="Close">✕</button>
+    </header>
+
+    <div class="sheet__body">
+      <div class="loc-box">
+        <div><strong id="loc-coords">Waiting for GPS…</strong></div>
+        <div class="muted small" id="loc-acc"></div>
+        <div class="muted small" id="loc-fire"></div>
+        <button type="button" id="btn-pick-on-map" class="btn btn--sm">Place manually on map</button>
+      </div>
+
+      <fieldset class="depths">
+        <legend>Burn depth readings (cm) <span class="req">required</span></legend>
+        <p class="muted small">Enter up to five readings around the point. At least one is required.</p>
+        <div class="depth-grid">
+          <label>1<input type="number" step="0.5" min="0" max="500" inputmode="decimal" data-depth></label>
+          <label>2<input type="number" step="0.5" min="0" max="500" inputmode="decimal" data-depth></label>
+          <label>3<input type="number" step="0.5" min="0" max="500" inputmode="decimal" data-depth></label>
+          <label>4<input type="number" step="0.5" min="0" max="500" inputmode="decimal" data-depth></label>
+          <label>5<input type="number" step="0.5" min="0" max="500" inputmode="decimal" data-depth></label>
+        </div>
+        <div class="mean-box">Mean: <strong id="depth-mean">—</strong> <span id="depth-spread" class="muted small"></span></div>
+      </fieldset>
+
+      <label class="field">
+        <span>Photo <span class="req">required</span></span>
+        <input type="file" id="photo-input" accept="image/*" capture="environment">
+        <span class="muted small">Include a ruler or a familiar object for scale.</span>
+      </label>
+      <div id="photo-preview" class="photo-preview" hidden><img alt="Photo preview"><button type="button" id="photo-clear" class="btn btn--sm">Remove</button></div>
+
+      <label class="field">
+        <span>Notes</span>
+        <textarea id="comment-input" rows="3" maxlength="500" placeholder="Vegetation, ash depth, anything unusual…"></textarea>
+      </label>
+
+      <label class="field">
+        <span>Your name or initials</span>
+        <input type="text" id="surveyor-input" maxlength="60" placeholder="Saved for next time">
+      </label>
+
+      <p id="form-error" class="form-error" hidden></p>
+    </div>
+
+    <footer class="sheet__foot">
+      <button type="button" id="form-cancel" class="btn">Cancel</button>
+      <button type="button" id="form-save" class="btn btn--primary">Save measurement</button>
+    </footer>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/markercluster/leaflet.markercluster.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

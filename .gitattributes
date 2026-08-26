@@ -1,0 +1,17 @@
+# Keep line endings sane across Windows/CI. A .sh file checked out with CRLF
+# fails in bash with "bad interpreter".
+* text=auto eol=lf
+*.sh   text eol=lf
+*.py   text eol=lf
+
+# Binary: never touch these
+*.png  binary
+*.webp binary
+*.jpg  binary
+*.shp  binary
+*.shx  binary
+*.dbf  binary
+*.qix  binary
+*.cpg  binary
+*.prj  binary
+*.tif  binary

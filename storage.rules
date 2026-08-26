@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// PeatProbe Cloud Storage rules.
+//
+// Photos are the main cost exposure on an open link: they are the largest
+// objects and the easiest thing to abuse. Size and type are capped here, and
+// enforced again client-side before upload.
+//
+// Deploy with:  firebase deploy --only storage
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /photos/{fireId}/{fileName} {
+      allow read: if request.auth != null;
+
+      // Write once. Without this a user could repeatedly overwrite an object
+      // and run up egress and storage costs on an id they already own.
+      allow create: if request.auth != null
+        && request.resource.size < 3 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*')
+        && fileName.matches('[a-zA-Z0-9-]+\\.jpg');
+
+      allow update, delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

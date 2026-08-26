@@ -1,0 +1,64 @@
+rules_version = '2';
+
+// PeatProbe Firestore rules.
+//
+// Threat model: the app URL is public and anyone with a Google account can
+// sign in. These rules assume that, and constrain what a signed-in stranger
+// can do rather than trying to keep them out.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function validMeasurement(d) {
+      return d.keys().hasAll(['uuid','lat','lon','depths','depthMean','userId','createdAt'])
+        && d.uuid is string && d.uuid.size() > 10 && d.uuid.size() < 64
+        && d.lat is number && d.lat > 49.0 && d.lat < 61.0        // UK bounding box
+        && d.lon is number && d.lon > -9.0  && d.lon < 2.5
+        && d.depths is list && d.depths.size() <= 5
+        && d.depthMean is number && d.depthMean >= 0 && d.depthMean <= 500
+        && d.userId == request.auth.uid                            // no writing as someone else
+        && d.comment.size() <= 500
+        && d.status == 'pending_review';                           // only an admin may verify
+    }
+
+    match /measurements/{uuid} {
+      // Everyone signed in can see the collected points - that is the point of
+      // the project. Tighten to `resource.data.status == 'verified'` if you
+      // would rather the public only saw reviewed data.
+      allow read: if signedIn();
+
+      // Document id must equal the client-generated uuid, which makes retries
+      // idempotent and stops one user spraying thousands of documents.
+      allow create: if signedIn()
+        && uuid == request.resource.data.uuid
+        && validMeasurement(request.resource.data);
+
+      // Contributors may correct their own submission while it is unreviewed.
+      allow update: if isAdmin()
+        || (signedIn()
+            && resource.data.userId == request.auth.uid
+            && resource.data.status == 'pending_review'
+            && request.resource.data.userId == resource.data.userId);
+
+      allow delete: if isAdmin();
+    }
+
+    // Admin allowlist. Add a document whose id is the user's uid, by hand,
+    // in the Firebase console. Nobody can grant themselves membership.
+    match /admins/{uid} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+  }
+}

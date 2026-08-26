@@ -1,0 +1,13 @@
+# Intermediate build artefact (7.6 MB) - not needed at runtime.
+# data/fires/ IS committed: GitHub Pages serves straight from the repo, and
+# the app fetches those files when building a field pack.
+data/fires-detail.geojson
+
+# CORINE tiles: potentially hundreds of MB. Decide hosting before committing -
+# GitHub caps individual files at 100 MB and recommends repos under 1 GB.
+data/corine/
+
+# OS noise
+Thumbs.db
+.DS_Store
+desktop.ini

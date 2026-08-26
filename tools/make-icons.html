@@ -1,0 +1,54 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PeatProbe icon generator</title>
+<style>
+  body{font:16px/1.5 system-ui;margin:40px;max-width:640px}
+  button{font:inherit;padding:10px 18px;border-radius:8px;border:1.5px solid #ccc;
+    background:#EA580C;color:#fff;font-weight:600;cursor:pointer}
+  canvas{border:1px solid #ddd;margin:8px 8px 0 0;vertical-align:top}
+  code{background:#f2efe9;padding:2px 5px;border-radius:4px}
+</style>
+
+<h1>PeatProbe icon generator</h1>
+<p>Open this file in a browser and click the button. It renders
+<code>icons/logo.svg</code> to the PNG sizes the web app manifest asks for and
+downloads them. Move the four files into <code>icons/</code>.</p>
+<p><em>Only needed once, or whenever you change the logo.</em></p>
+
+<button id="go">Generate and download icons</button>
+<div id="out"></div>
+
+<script>
+const SIZES = [
+  { name: 'icon-192.png', size: 192, pad: 0 },
+  { name: 'icon-512.png', size: 512, pad: 0 },
+  { name: 'icon-512-maskable.png', size: 512, pad: 0.14 }, // safe zone for Android masks
+  { name: 'icon-180.png', size: 180, pad: 0 },             // apple-touch-icon
+];
+
+document.getElementById('go').addEventListener('click', async () => {
+  const svgText = await (await fetch('../icons/logo.svg')).text();
+  const blob = new Blob([svgText], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+
+  for (const { name, size, pad } of SIZES) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#F6F1E8';
+    ctx.fillRect(0, 0, size, size);
+    const inset = Math.round(size * pad);
+    ctx.drawImage(img, inset, inset, size - inset * 2, size - inset * 2);
+    document.getElementById('out').append(c);
+
+    const a = document.createElement('a');
+    a.download = name;
+    a.href = c.toDataURL('image/png');
+    a.click();
+    await new Promise(r => setTimeout(r, 350)); // browsers throttle rapid downloads
+  }
+  URL.revokeObjectURL(url);
+});
+</script>

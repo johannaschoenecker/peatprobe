@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="PeatProbe">
+  <defs>
+    <clipPath id="pp-clip"><circle cx="64" cy="64" r="58"/></clipPath>
+
+    <linearGradient id="pp-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2E5FA3"/>
+      <stop offset="1" stop-color="#6FCFCB"/>
+    </linearGradient>
+    <linearGradient id="pp-char" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3A2154"/>
+      <stop offset="1" stop-color="#241B3D"/>
+    </linearGradient>
+    <linearGradient id="pp-s1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E8478B"/>
+      <stop offset="1" stop-color="#F2663C"/>
+    </linearGradient>
+    <linearGradient id="pp-s2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F79A3E"/>
+      <stop offset="1" stop-color="#FFB347"/>
+    </linearGradient>
+    <linearGradient id="pp-s3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2E3192"/>
+      <stop offset="1" stop-color="#1B1B4D"/>
+    </linearGradient>
+    <linearGradient id="pp-wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#B4623A"/>
+      <stop offset="1" stop-color="#7A3B2E"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="64" cy="64" r="58" fill="url(#pp-sky)"/>
+
+  <g clip-path="url(#pp-clip)">
+    <!-- one drifting cloud, in the album's puffy language -->
+    <g fill="#F2A0C4" opacity=".75">
+      <circle cx="24" cy="30" r="9"/><circle cx="36" cy="26" r="11"/>
+      <rect x="24" y="28" width="12" height="9"/>
+    </g>
+
+    <!-- heather: woody stem and flower spikes -->
+    <g stroke="url(#pp-wood)" stroke-linecap="round" fill="none">
+      <path d="M78,58 L78,40" stroke-width="6"/>
+      <path d="M78,46 L66,34" stroke-width="4.5"/>
+      <path d="M78,44 L90,33" stroke-width="4.5"/>
+    </g>
+    <g fill="#C2409B">
+      <circle cx="78" cy="20" r="4.2"/><circle cx="78" cy="28" r="4.6"/><circle cx="78" cy="36" r="4.2"/>
+      <circle cx="64" cy="26" r="4"/><circle cx="67" cy="33" r="4.2"/>
+      <circle cx="92" cy="25" r="4"/><circle cx="89" cy="32" r="4.2"/>
+    </g>
+    <g fill="#F26FB8">
+      <circle cx="78" cy="24" r="2.4"/><circle cx="78" cy="32" r="2.4"/>
+      <circle cx="65" cy="29" r="2.2"/><circle cx="90" cy="28" r="2.2"/>
+    </g>
+
+    <!-- exposed roots: peat has burned away from beneath the plant -->
+    <g stroke="url(#pp-wood)" stroke-linecap="round" fill="none">
+      <path d="M78,58 C70,64 62,72 56,88" stroke-width="4.5"/>
+      <path d="M78,58 C76,68 73,78 71,92" stroke-width="4"/>
+      <path d="M78,58 C81,68 84,77 85,90" stroke-width="4"/>
+      <path d="M78,58 C86,64 94,70 100,84" stroke-width="3.5"/>
+      <path d="M78,58 C74,64 68,68 62,74" stroke-width="2.6"/>
+      <path d="M78,58 C84,62 90,64 96,68" stroke-width="2.6"/>
+    </g>
+
+    <!-- burnt surface and the peat strata beneath -->
+    <path d="M-6,88 L20,84 L46,90 L74,83 L100,89 L134,84 L134,100 L-6,100 Z" fill="url(#pp-char)"/>
+    <rect x="-6" y="100" width="140" height="11" fill="url(#pp-s1)"/>
+    <rect x="-6" y="111" width="140" height="10" fill="url(#pp-s2)"/>
+    <rect x="-6" y="121" width="140" height="12" fill="url(#pp-s3)"/>
+
+    <!-- burn depth: root collar (pre-fire surface) down to what is left -->
+    <g stroke="#FFF6E4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <line x1="30" y1="58" x2="48" y2="58" stroke-width="3" opacity=".9"/>
+      <line x1="30" y1="86" x2="48" y2="86" stroke-width="3" opacity=".9"/>
+      <line x1="39" y1="58" x2="39" y2="86" stroke-width="4"/>
+      <polyline points="33,64 39,57 45,64" stroke-width="4"/>
+      <polyline points="33,80 39,87 45,80" stroke-width="4"/>
+    </g>
+  </g>
+
+  <circle cx="64" cy="64" r="58" fill="none" stroke="#1B1B4D" stroke-width="5"/>
+</svg>
