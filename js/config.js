@@ -19,9 +19,17 @@ export const APP = {
 // cannot decode it.
 //
 // SECURITY: this key ships inside client-side JavaScript and is visible to
-// anyone who opens the page. That is unavoidable for a web map. Restrict it in
-// your MapTiler account (Account > Keys > allowed origins) to the domain you
-// deploy to, otherwise someone else can spend your tile quota.
+// anyone who opens the page. That is unavoidable for a web map - the control
+// is the origin whitelist at MapTiler's end, not secrecy.
+//
+// MapTiler Cloud > Keys > (your key) > Edit > "Allowed HTTP origins".
+// Bare hostnames, one per line, no protocol and no path:
+//
+//     localhost
+//     YOUR-USERNAME.github.io
+//
+// Anything not listed is rejected AND not billed to you. Until this is set,
+// treat the key as spendable by anyone who views source.
 //
 // QUOTA: building a pack spends one tile request per tile, in a burst. The
 // median fire is ~260 requests, the largest ~8,100. Check your plan's monthly
