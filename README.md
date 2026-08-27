@@ -1,6 +1,6 @@
 # PeatProbe
 
-Offline-first citizen science app for recording **peat burn depth** after UK wildfires.
+Offline-first app for recording **peat burn depth** after UK wildfires.
 
 Volunteers open a link, download a "field pack" for the fire they are visiting,
 then work with no signal — map, fire perimeter, GPS, depth readings and photos
