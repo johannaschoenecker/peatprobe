@@ -35,7 +35,9 @@ pick_python() {
 PYTHON="${PYTHON:-$(pick_python)}" || true
 [ -n "$PYTHON" ] || { echo "No working python found. Set PYTHON=/path/to/python and retry."; exit 1; }
 
-FIELDS="id, COMMUNE, PROVINCE, COUNTRY, FIREDATE, CLASS, areaHA_geo"
+# FINALDATE matters: it is the containment date, and the dNBR pipeline uses it
+# to open the post-fire imagery window.
+FIELDS="id, COMMUNE, PROVINCE, COUNTRY, FIREDATE, FINALDATE, CLASS, areaHA_geo"
 
 mkdir -p "$OUT"
 rm -f "$OUT/fires-index.geojson" "$OUT/fires-detail.geojson"
