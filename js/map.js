@@ -13,6 +13,7 @@ const DOT_ZOOM_MAX = 10;   // dots below this zoom, real perimeters at/above
 let map, firePolys, fireDots, pointsLayer, gpsMarker, gpsCircle;
 let fireIndex = null;          // GeoJSON FeatureCollection
 let packStates = new Map();    // fireId -> 'none' | 'ready' | 'stale'
+let minAreaHa = 0;             // size filter; 0 = show everything
 let dotById = new Map();       // fireId -> centroid marker, so it can restyle
 let dnbrGroup;                 // burn severity image overlays
 let dnbrOverlays = new Map();  // fireId -> L.ImageOverlay
@@ -154,6 +155,7 @@ export async function initMap(opts) {
   });
 
   legend.addTo(map);
+  areaFilterCtl.addTo(map);
 
   await loadFireIndex();
   return map;
@@ -171,10 +173,32 @@ async function loadFireIndex() {
     f._c = representativePoint(f.geometry);
   }
 
-  firePolys.addData(fireIndex);
+  minAreaHa = (await DB.getMeta('minAreaHa')) || 0;
+  areaFilterCtl.refresh(); // control was built before the saved value loaded
+  rebuildFireLayers();
+  syncDotVisibility();
+  handlers.onIndexLoaded && handlers.onIndexLoaded(fireIndex);
+}
 
-  const dots = fireIndex.features.map((f) => {
-    const m = L.circleMarker([f._c.lat, f._c.lon], DOT_STYLE.none)
+/** A downloaded fire is never hidden by the size filter - your own work
+ *  disappearing from the map would read as data loss. */
+function fireVisible(f) {
+  if ((packStates.get(f.properties.id) || 'none') !== 'none') return true;
+  return (Number(f.properties.areaHA_geo) || 0) >= minAreaHa;
+}
+
+function rebuildFireLayers() {
+  if (!fireIndex || !firePolys) return;
+  const feats = fireIndex.features.filter(fireVisible);
+
+  firePolys.clearLayers();
+  firePolys.addData({ type: 'FeatureCollection', features: feats });
+
+  fireDots.clearLayers();
+  dotById.clear();
+  const dots = feats.map((f) => {
+    const m = L.circleMarker([f._c.lat, f._c.lon],
+        DOT_STYLE[stateOf(f.properties.id)])
       .on('click', () => openFirePopup(f))
       .bindTooltip(`${fireName(f.properties)} · ${fireSubtitle(f.properties)}`,
                    { direction: 'top', offset: [0, -6] });
@@ -182,9 +206,15 @@ async function loadFireIndex() {
     return m;
   });
   fireDots.addLayers(dots);
-  syncDotVisibility();
-  handlers.onIndexLoaded && handlers.onIndexLoaded(fireIndex);
 }
+
+export function setAreaFilter(v) {
+  minAreaHa = v;
+  DB.setMeta('minAreaHa', v).catch(() => {});
+  rebuildFireLayers();
+}
+
+export function getAreaFilter() { return minAreaHa; }
 
 function representativePoint(geom) {
   let sx = 0, sy = 0, n = 0;
@@ -270,6 +300,35 @@ async function syncDnbrOverlays() {
     budget--;
   }
 }
+
+// ── size filter ───────────────────────────────────────────────────────────
+// Median EFFIS fire is 16 ha; the steps below cut 1,599 fires to 550/162/83.
+const AREA_STEPS = [[0, 'All'], [10, '10+ ha'], [50, '50+ ha'], [100, '100+ ha']];
+
+const areaFilterCtl = L.control({ position: 'topright' });
+
+areaFilterCtl.onAdd = function () {
+  const el = L.DomUtil.create('div', 'area-filter');
+  L.DomEvent.disableClickPropagation(el);
+  el.innerHTML = '<span class="area-filter__lbl">Fire size</span>' +
+    AREA_STEPS.map(([v, label]) =>
+      `<button type="button" data-v="${v}">${label}</button>`).join('');
+  el.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-v]');
+    if (!btn) return;
+    setAreaFilter(Number(btn.dataset.v));
+    this.refresh();
+  });
+  this._el = el;
+  this.refresh();
+  return el;
+};
+
+areaFilterCtl.refresh = function () {
+  if (!this._el) return;
+  this._el.querySelectorAll('button[data-v]').forEach((b) =>
+    b.classList.toggle('is-on', Number(b.dataset.v) === minAreaHa));
+};
 
 // ── legend ────────────────────────────────────────────────────────────────
 // CORINE has 44 classes, which is unreadable on a phone. These are the ones
@@ -372,6 +431,12 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g,
 // ── public helpers ────────────────────────────────────────────────────────
 export function setPackStates(states) {
   packStates = states;
+  if (minAreaHa > 0) {
+    // A newly downloaded fire may have been hidden by the size filter and
+    // must reappear, so rebuild rather than restyle.
+    rebuildFireLayers();
+    return;
+  }
   if (firePolys) firePolys.setStyle(styleFor);
   // Restyle the centroid dots too - these are what is visible and clickable
   // below the polygon threshold.
