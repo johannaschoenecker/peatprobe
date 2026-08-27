@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Generate icons/logo.svg.
 
-Heather (Calluna vulgaris) with its root system exposed by burnt-away peat,
-and a measure from the root collar - which marks the pre-fire surface - down
-to what is left.
+A modern flat illustration: a heather plant growing on peat, its roots visible
+in the peat profile beneath, and a flame set back in the background.
 
-Florets are placed along each shoot by walking the curve, because heather
-carries its flowers ALONG the upper stem rather than in a ball at the tip.
-That distinction is what stops it reading as lavender or as a small tree.
+Palette is natural rather than graphic - peat browns, heather mauve, olive
+foliage, a warm flame - so the mark reads as a field science tool.
+
+Florets are placed by walking each shoot curve, because heather carries its
+flowers ALONG the upper stem rather than in a ball at the tip. That, plus the
+fine foliage low down, is what stops it reading as lavender.
 
 Usage: python3 tools/make_logo.py
 """
@@ -16,47 +18,42 @@ import math
 import os
 
 # ── composition ───────────────────────────────────────────────────────────
-COLLAR = (78.0, 52.0)   # root collar = pre-fire peat surface
-SURFACE_Y = 78.0        # burnt surface today
-ARROW_X = 38.0
+GROUND_Y = 78.0          # top of the peat
+COLLAR = (57.0, 77.0)    # where the plant meets the ground
 
-# Each shoot: (control point, tip). Heather is a DENSE clump of near-upright
-# wiry shoots, not a wide radiating fan - splaying them too far reads as
-# scattered speckle at icon size rather than as one plant.
+# Each shoot: (control point, tip). A dense clump of near-upright wiry stems.
 SHOOTS = [
-    ((71, 40), (66, 24)),
-    ((74, 35), (71, 18)),
-    ((77, 32), (76, 15)),
-    ((80, 32), (82, 15)),
-    ((83, 35), (88, 19)),
-    ((86, 40), (93, 26)),
+    ((47, 63), (41, 45)),
+    ((51, 58), (47, 36)),
+    ((55, 54), (54, 30)),
+    ((59, 54), (62, 29)),
+    ((63, 57), (69, 34)),
+    ((67, 62), (75, 43)),
 ]
 
-# Roots: (control, tip, width)
+# Roots: (control, tip, width). Drawn over the strata so they read as a cutaway.
 ROOTS = [
-    ((68, 60), (56, 80), 4.2),
-    ((74, 63), (70, 84), 3.6),
-    ((82, 63), (86, 83), 3.6),
-    ((88, 60), (99, 79), 3.2),
-    ((72, 57), (62, 67), 2.2),
-    ((85, 57), (94, 65), 2.2),
+    ((49, 86), (39, 104), 3.6),
+    ((54, 90), (49, 110), 3.2),
+    ((60, 90), (66, 109), 3.2),
+    ((65, 86), (76, 101), 2.8),
+    ((51, 83), (44, 92),  2.0),
+    ((63, 83), (71, 90),  2.0),
 ]
 
-FLOWER = "#A85BA8"
-FLOWER_HI = "#CE93CE"
-FLOWER_LO = "#7E4189"
-LEAF = "#4F6B3C"
+SKY_TOP, SKY_BOT = '#E9E2D6', '#D3DCDC'
+FLAME_OUT, FLAME_IN = '#F0A354', '#F6C877'
+FLORET, FLORET_HI, FLORET_LO = '#9B5FA8', '#C08FC9', '#77448A'
+LEAF = '#55703F'
 
 
 def qbez(p0, p1, p2, t):
-    """Point on a quadratic Bezier."""
     u = 1 - t
     return (u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0],
             u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1])
 
 
 def perp(p0, p1, p2, t):
-    """Unit normal, so florets and leaves sit either side of the stem."""
     u = 1 - t
     dx = 2 * u * (p1[0] - p0[0]) + 2 * t * (p2[0] - p1[0])
     dy = 2 * u * (p1[1] - p0[1]) + 2 * t * (p2[1] - p1[1])
@@ -67,114 +64,106 @@ def perp(p0, p1, p2, t):
 def build():
     out = []
     add = out.append
-
     add('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" '
         'role="img" aria-label="PeatProbe">')
 
-    # ── defs ──
     add('  <defs>')
     add('    <clipPath id="pp-clip"><circle cx="64" cy="64" r="58"/></clipPath>')
+    # userSpaceOnUse throughout: several shoots are near-vertical lines whose
+    # object bounding box has zero width, and an objectBoundingBox gradient
+    # silently fails to paint on those.
     grads = [
-        ('pp-sky', 0, 6, 0, 90, [('0', '#2E5FA3'), ('1', '#7FD4CD')]),
-        ('pp-char', 0, 74, 0, 92, [('0', '#3A2154'), ('1', '#241B3D')]),
-        ('pp-s1', 0, 92, 0, 104, [('0', '#E8478B'), ('1', '#F2663C')]),
-        ('pp-s2', 0, 104, 0, 114, [('0', '#F79A3E'), ('1', '#FFB347')]),
-        ('pp-s3', 0, 114, 0, 128, [('0', '#2E3192'), ('1', '#1B1B4D')]),
-        # userSpaceOnUse throughout: several stems are near-vertical lines whose
-        # object bounding box has zero width, and an objectBoundingBox gradient
-        # silently fails to paint on those.
-        ('pp-wood', 0, 14, 0, 94, [('0', '#9A6B4A'), ('.45', '#7A4A33'), ('1', '#5E3327')]),
+        ('pp-sky',   6,  80,  SKY_TOP,   SKY_BOT),
+        ('pp-flame', 20, 92,  FLAME_IN,  FLAME_OUT),
+        ('pp-p1',    78, 94,  '#6E4C34', '#5C3F2B'),
+        ('pp-p2',    94, 108, '#4C3421', '#3E2A1B'),
+        ('pp-p3',   108, 126, '#332317', '#2B1D13'),
+        ('pp-wood',  74, 112, '#8A5A3B', '#5A3726'),
     ]
-    for gid, x1, y1, x2, y2, stops in grads:
+    for gid, y1, y2, c0, c1 in grads:
         add(f'    <linearGradient id="{gid}" gradientUnits="userSpaceOnUse" '
-            f'x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}">')
-        for off, col in stops:
-            add(f'      <stop offset="{off}" stop-color="{col}"/>')
+            f'x1="0" y1="{y1}" x2="0" y2="{y2}">')
+        add(f'      <stop offset="0" stop-color="{c0}"/>')
+        add(f'      <stop offset="1" stop-color="{c1}"/>')
         add('    </linearGradient>')
     add('  </defs>')
 
     add('  <circle cx="64" cy="64" r="58" fill="url(#pp-sky)"/>')
     add('  <g clip-path="url(#pp-clip)">')
 
-    # ── cloud ──
-    # Pale cyan, not pink: a pink cloud sits in the same colour family as the
-    # florets and the eye reads it as a second flowering clump.
-    add('    <g fill="#CFEDE8" opacity=".62">')
-    add('      <circle cx="22" cy="30" r="9"/><circle cx="34" cy="26" r="11"/>')
-    add('      <rect x="22" y="28" width="12" height="9"/>')
-    add('    </g>')
+    # ── flame, set back behind the plant ──
+    # Large, faint, and positioned so the heather crosses in front of it. A
+    # solid flame beside the plant reads as a second subject competing for
+    # attention rather than as background.
+    add('    <path d="M70,13 C80,38 93,50 93,67 C93,81 83,91 70,91 '
+        'C57,91 47,81 47,67 C47,52 62,45 65,29 C68,46 68,36 70,13 Z" '
+        'fill="url(#pp-flame)" opacity=".42"/>')
+    add('    <path d="M71,42 C77,57 84,64 84,72 C84,81 78,87 71,87 '
+        'C64,87 58,81 58,72 C58,66 66,62 68,52 C70,63 70,56 71,42 Z" '
+        f'fill="{FLAME_IN}" opacity=".34"/>')
 
-    # ── roots (drawn before the ground so their tips are buried) ──
-    add('    <g stroke="url(#pp-wood)" stroke-linecap="round" fill="none">')
+    # ── peat profile ──
+    add(f'    <path d="M-6,{GROUND_Y+2} L22,{GROUND_Y-3} L50,{GROUND_Y+1} '
+        f'L78,{GROUND_Y-4} L104,{GROUND_Y+1} L134,{GROUND_Y-3} L134,94 L-6,94 Z" '
+        'fill="url(#pp-p1)"/>')
+    add('    <rect x="-6" y="94" width="140" height="14" fill="url(#pp-p2)"/>')
+    add('    <rect x="-6" y="108" width="140" height="20" fill="url(#pp-p3)"/>')
+    # charred skin at the surface
+    add(f'    <path d="M-6,{GROUND_Y+2} L22,{GROUND_Y-3} L50,{GROUND_Y+1} '
+        f'L78,{GROUND_Y-4} L104,{GROUND_Y+1} L134,{GROUND_Y-3} L134,{GROUND_Y-0.5} '
+        f'L104,{GROUND_Y+3.5} L78,{GROUND_Y-1.5} L50,{GROUND_Y+3.5} L22,{GROUND_Y-0.5} L-6,{GROUND_Y+4.5} Z" '
+        'fill="#2E241C" opacity=".75"/>')
+
+    # ── roots, visible through the peat ──
+    add('    <g stroke="url(#pp-wood)" stroke-linecap="round" fill="none" opacity=".92">')
     for ctrl, tip, w in ROOTS:
         add(f'      <path d="M{COLLAR[0]},{COLLAR[1]} Q{ctrl[0]},{ctrl[1]} '
             f'{tip[0]},{tip[1]}" stroke-width="{w}"/>')
     add('    </g>')
 
     # ── woody base ──
-    add(f'    <ellipse cx="{COLLAR[0]}" cy="{COLLAR[1]}" rx="7" ry="4" fill="#6E3E2C"/>')
+    add(f'    <ellipse cx="{COLLAR[0]}" cy="{COLLAR[1]}" rx="6.5" ry="3.4" fill="#6B4229"/>')
 
     # ── shoots ──
     add('    <g stroke="url(#pp-wood)" stroke-linecap="round" fill="none">')
     for ctrl, tip in SHOOTS:
         add(f'      <path d="M{COLLAR[0]},{COLLAR[1]} Q{ctrl[0]},{ctrl[1]} '
-            f'{tip[0]},{tip[1]}" stroke-width="2.6"/>')
+            f'{tip[0]},{tip[1]}" stroke-width="2.4"/>')
     add('    </g>')
 
-    # ── fine foliage low on the stems: the heather/lavender tell ──
-    add(f'    <g stroke="{LEAF}" stroke-width="1.9" stroke-linecap="round">')
+    # ── fine foliage low on the stems ──
+    add(f'    <g stroke="{LEAF}" stroke-width="1.8" stroke-linecap="round">')
     for ctrl, tip in SHOOTS:
-        t = 0.14
-        while t < 0.40:
+        t = 0.16
+        while t < 0.44:
             px, py = qbez(COLLAR, ctrl, tip, t)
             nx, ny = perp(COLLAR, ctrl, tip, t)
             for s in (1, -1):
                 add(f'      <line x1="{px:.1f}" y1="{py:.1f}" '
-                    f'x2="{px + nx * 2.4 * s:.1f}" y2="{py + ny * 2.4 * s - 1.0:.1f}"/>')
-            t += 0.13
+                    f'x2="{px + nx * 2.3 * s:.1f}" y2="{py + ny * 2.3 * s - 0.9:.1f}"/>')
+            t += 0.14
     add('    </g>')
 
     # ── florets along the upper stem ──
     add('    <g>')
     for ctrl, tip in SHOOTS:
-        t = 0.40
-        side = 1
-        # Tight spacing so the florets merge into a spike rather than reading
-        # as loose dots once the icon is scaled down.
+        t, side = 0.44, 1
         while t <= 1.001:
             px, py = qbez(COLLAR, ctrl, tip, t)
             nx, ny = perp(COLLAR, ctrl, tip, t)
-            off = 1.25 * side
-            cx, cy = px + nx * off, py + ny * off
-            r = 3.1 - 1.0 * t          # florets taper toward the tip
-            add(f'      <circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" fill="{FLOWER_LO}"/>')
+            cx, cy = px + nx * 1.2 * side, py + ny * 1.2 * side
+            r = 3.0 - 1.0 * t
+            add(f'      <circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" fill="{FLORET_LO}"/>')
             add(f'      <circle cx="{cx - 0.5:.1f}" cy="{cy - 0.5:.1f}" '
-                f'r="{r - 0.7:.1f}" fill="{FLOWER}"/>')
+                f'r="{r - 0.7:.1f}" fill="{FLORET}"/>')
             add(f'      <circle cx="{cx - 0.8:.1f}" cy="{cy - 0.9:.1f}" '
-                f'r="{max(0.6, r - 1.7):.1f}" fill="{FLOWER_HI}"/>')
+                f'r="{max(0.55, r - 1.7):.1f}" fill="{FLORET_HI}"/>')
             side *= -1
-            t += 0.072
-    add('    </g>')
-
-    # ── burnt surface and strata ──
-    add(f'    <path d="M-6,80 L20,76 L46,82 L74,75 L100,81 L134,76 L134,92 L-6,92 Z" '
-        f'fill="url(#pp-char)"/>')
-    add('    <rect x="-6" y="92" width="140" height="12" fill="url(#pp-s1)"/>')
-    add('    <rect x="-6" y="104" width="140" height="10" fill="url(#pp-s2)"/>')
-    add('    <rect x="-6" y="114" width="140" height="16" fill="url(#pp-s3)"/>')
-
-    # ── burn-depth measure ──
-    a, top, bot = ARROW_X, COLLAR[1], SURFACE_Y
-    add('    <g stroke="#FFF6E4" stroke-linecap="round" stroke-linejoin="round" fill="none">')
-    add(f'      <line x1="{a - 10}" y1="{top}" x2="{a + 9}" y2="{top}" stroke-width="3" opacity=".92"/>')
-    add(f'      <line x1="{a - 10}" y1="{bot}" x2="{a + 9}" y2="{bot}" stroke-width="3" opacity=".92"/>')
-    add(f'      <line x1="{a}" y1="{top}" x2="{a}" y2="{bot}" stroke-width="4"/>')
-    add(f'      <polyline points="{a - 6},{top + 6} {a},{top - 1} {a + 6},{top + 6}" stroke-width="4"/>')
-    add(f'      <polyline points="{a - 6},{bot - 6} {a},{bot + 1} {a + 6},{bot - 6}" stroke-width="4"/>')
+            t += 0.075
     add('    </g>')
 
     add('  </g>')
-    add('  <circle cx="64" cy="64" r="58" fill="none" stroke="#1B1B4D" stroke-width="5"/>')
+    add('  <circle cx="64" cy="64" r="58" fill="none" stroke="#3A2A1E" stroke-width="4.5"/>')
     add('</svg>')
     return '\n'.join(out) + '\n'
 
