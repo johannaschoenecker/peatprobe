@@ -101,7 +101,7 @@ export const LAYERS = {
   // Flip corineAvailable once the tiles exist. Until then the app simply
   // omits the layer rather than showing a broken one.
   corineTiles: 'data/corine/{z}/{x}/{y}.png',
-  corineAvailable: false,
+  corineAvailable: true,
   // Must match MAX_Z in tools/build_corine_tiles.sh. At z11 a pixel is ~44 m,
   // already finer than the 100 m source; Leaflet upscales beyond this rather
   // than requesting tiles that were never generated.
