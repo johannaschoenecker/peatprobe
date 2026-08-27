@@ -23,11 +23,16 @@
 // (-7.54, 49.98) to (1.63, 60.30).
 var UK = ee.Geometry.Rectangle([-8.8, 49.7, 2.2, 61.1], null, false);
 
-var clc = ee.Image(
-  ee.ImageCollection('COPERNICUS/CORINE/V20/100m')
-    .filterDate('2018-01-01', '2018-12-31')
-    .first()
-).select('landcover').clip(UK);
+// Address the year directly. Do NOT filterDate this collection: each image is
+// stamped with its REFERENCE PERIOD, not its label year - the 2018 asset spans
+// 2017-2018, so filterDate('2018-01-01', ...) matches nothing and .first()
+// returns null ("Image.select: Parameter 'input' is required and may not be
+// null"). Valid years: 1990, 2000, 2006, 2012, 2018.
+var CLC_YEAR = 2018;
+
+var clc = ee.Image('COPERNICUS/CORINE/V20/100m/' + CLC_YEAR)
+            .select('landcover')
+            .clip(UK);
 
 // ── the classes that matter for peat fire work ────────────────────────────
 //  412 Peat bogs                     <- the one you care about
@@ -40,30 +45,35 @@ var clc = ee.Image(
 //  333 Sparsely vegetated areas
 var PEAT_CLASSES = [412, 411, 322, 321, 324];
 
-// Quick sanity check: how much of each burned area sits on which class?
-// Uses the EFFIS perimeters if you have already uploaded them.
-var FIRES = ee.FeatureCollection('projects/YOUR-PROJECT/assets/EFFIS_UK_fires_25_26');
+// ── optional: land cover composition per fire ─────────────────────────────
+// Needs the EFFIS shapefile uploaded as a GEE table asset. Leave this false
+// until you have done that, otherwise the whole script fails on a missing
+// asset before it reaches the raster export.
+var DO_PER_FIRE = false;
+var FIRES_ASSET = 'projects/YOUR-PROJECT/assets/EFFIS_UK_fires_25_26';
 
-var perFire = FIRES.map(function (f) {
-  var hist = clc.reduceRegion({
-    reducer: ee.Reducer.frequencyHistogram(),
-    geometry: f.geometry(), scale: 100, maxPixels: 1e9, bestEffort: true
-  }).get('landcover');
-  return ee.Feature(null, {
-    id: f.get('id'),
-    commune: f.get('COMMUNE'),
-    area_ha: f.get('areaHA_geo'),
-    firedate: f.get('FIREDATE'),
-    clc_histogram: ee.Dictionary(hist).toString()
+if (DO_PER_FIRE) {
+  var FIRES = ee.FeatureCollection(FIRES_ASSET);
+  var perFire = FIRES.map(function (f) {
+    var hist = clc.reduceRegion({
+      reducer: ee.Reducer.frequencyHistogram(),
+      geometry: f.geometry(), scale: 100, maxPixels: 1e9, bestEffort: true
+    }).get('landcover');
+    return ee.Feature(null, {
+      id: f.get('id'),
+      commune: f.get('COMMUNE'),
+      area_ha: f.get('areaHA_geo'),
+      firedate: f.get('FIREDATE'),
+      clc_histogram: ee.Dictionary(hist).toString()
+    });
   });
-});
-
-Export.table.toDrive({
-  collection: perFire,
-  description: 'peatprobe_corine_per_fire',
-  folder: 'peatprobe',
-  fileFormat: 'CSV'
-});
+  Export.table.toDrive({
+    collection: perFire,
+    description: 'peatprobe_corine_per_fire',
+    folder: 'peatprobe',
+    fileFormat: 'CSV'
+  });
+}
 
 // ── raster export ─────────────────────────────────────────────────────────
 // EPSG:3857 so no reprojection is needed before tiling. scale 100 in web
@@ -92,5 +102,9 @@ Map.addLayer(clc, {}, 'CORINE 2018 (built-in palette)');
 var peatMask = clc.remap(PEAT_CLASSES, ee.List.repeat(1, PEAT_CLASSES.length), 0);
 Map.addLayer(peatMask.selfMask(), { palette: ['#6a3d9a'] }, 'bog / heath / marsh', false);
 
-print('CLC image', clc);
+// If anything above goes wrong, these two prints tell you why: bandNames()
+// should be ['landcover'], and the id list confirms which years exist.
+print('CLC bands (expect ["landcover"]):', clc.bandNames());
+print('years available:',
+      ee.ImageCollection('COPERNICUS/CORINE/V20/100m').aggregate_array('system:index'));
 print('Peat-relevant classes', PEAT_CLASSES);
