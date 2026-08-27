@@ -1,11 +1,16 @@
+# ── generated, but COMMITTED because GitHub Pages serves straight from the
+#    repo and the app fetches these at runtime ──
+#    data/fires/    1,599 per-fire perimeters (~11 MB)
+#    data/corine/   CORINE tiles z6-11 (~2,600 tiles, ~5 MB)
+#    Both rebuild from data/source/ via tools/.
+
 # Intermediate build artefact (7.6 MB) - not needed at runtime.
-# data/fires/ IS committed: GitHub Pages serves straight from the repo, and
-# the app fetches those files when building a field pack.
 data/fires-detail.geojson
 
-# CORINE tiles: potentially hundreds of MB. Decide hosting before committing -
-# GitHub caps individual files at 100 MB and recommends repos under 1 GB.
-data/corine/
+# ── source rasters: large, and re-exportable from Earth Engine at any time.
+#    Keep them locally, keep them out of git. ──
+data/source/corine/
+data/source/dnbr/
 
 # OS noise
 Thumbs.db
