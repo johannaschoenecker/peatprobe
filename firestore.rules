@@ -29,6 +29,9 @@ service cloud.firestore {
         && d.depthMean is number && d.depthMean >= 0 && d.depthMean <= 500
         && d.userId == request.auth.uid                            // no writing as someone else
         && d.comment.size() <= 500
+        // Free text is capped; the controlled vocabulary is enforced.
+        && (d.combustion == null ||
+            d.combustion in ['unburned','light','moderate','near_complete'])
         && d.status == 'pending_review';                           // only an admin may verify
     }
 

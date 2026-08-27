@@ -297,3 +297,33 @@ origins, or the map will go blank in production.
 Fire perimeters: EFFIS, Copernicus Emergency Management Service.
 Land cover: CORINE Land Cover, Copernicus.
 Base map: © OpenStreetMap contributors.
+
+---
+
+## Land cover × burn severity charts
+
+`tools/build_fire_stats.py` cross-tabulates CORINE land cover against dNBR
+severity for every fire, writing `data/dnbr/stats.json` (27 kB). The fire
+popup's **Land cover & severity** button opens a chart of it, and each fire's
+stats are bundled into its field pack so the chart works offline.
+
+```bash
+PYTHONHOME='/c/Program Files/QGIS 3.32.3/apps/Python39' \
+'/c/Program Files/QGIS 3.32.3/bin/python3.exe' tools/build_fire_stats.py
+```
+
+Validated against EFFIS: **median area error 0.2%**, worst 1%.
+
+Across all 162 fires with severity: **47% of burned area is on CORINE peat
+bog**, 32% on moors and heathland.
+
+### ⚠️ A trap worth knowing about
+
+Earth Engine writes the clipped-away area of an exported image as **0 with no
+nodata value set**. A `.clip(geometry)` export therefore arrives as a full
+rectangle in which ~78% of pixels claim to be a genuine dNBR of 0. Taken at
+face value that inflates every area figure ~5x and paints severity across the
+whole bounding box.
+
+`tools/dnbr_common.py` cuts each raster to its own perimeter before anything
+reads it. If you ever re-export from GEE, this stays necessary.

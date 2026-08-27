@@ -29,6 +29,7 @@ import sys
 
 try:
     from osgeo import gdal, osr
+    from dnbr_common import cut_to_perimeter, NODATA
 except ImportError:
     sys.exit("GDAL python bindings not found. Try QGIS's interpreter:\n"
              "  PYTHONHOME='/c/Program Files/QGIS 3.32.3/apps/Python39' \\\n"
@@ -81,12 +82,16 @@ def wgs84_bounds(ds):
 
 def convert(path):
     fire_id = re.sub(r'^dnbr_', '', os.path.splitext(os.path.basename(path))[0])
-    ds = gdal.Open(path)
+    src = gdal.Open(path)
+    # GEE writes the clipped-away area as 0 with no nodata set, so cut to the
+    # real perimeter before anything else - otherwise most of the bounding box
+    # reads as a genuine "unburned" measurement.
+    ds, cut = cut_to_perimeter(src, fire_id)
     band = ds.GetRasterBand(1)
     arr = band.ReadAsArray()
     if arr is None:
         return None
-    nodata = band.GetNoDataValue()
+    nodata = band.GetNoDataValue() if not cut else NODATA
 
     h, w = arr.shape
     import numpy as np
@@ -94,9 +99,6 @@ def convert(path):
     valid = np.isfinite(a)
     if nodata is not None:
         valid &= (a != nodata)
-    # GEE writes 0 where the median composite had no usable pixels; those are
-    # indistinguishable from a genuine dNBR of exactly 0, but a whole-tile
-    # block of them means "no imagery", not "no change".
     if not valid.any():
         return None
 
@@ -123,6 +125,7 @@ def convert(path):
         'bounds': wgs84_bounds(ds),
         'size': [w, h],
         'px': total,
+        'cut_to_perimeter': bool(cut),
         'dnbr_mean': round(float(vals.mean()), 1),
         'dnbr_p90': round(float(np.percentile(vals, 90)), 1),
         'severe_frac': round(severe, 3),

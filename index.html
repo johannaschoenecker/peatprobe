@@ -113,6 +113,18 @@
       </fieldset>
 
       <label class="field">
+        <span>Completeness of vegetation combustion <span class="req">required</span></span>
+        <select id="combustion-input">
+          <option value="">Choose one…</option>
+          <option value="unburned">Unburned</option>
+          <option value="light">Lightly burned</option>
+          <option value="moderate">Moderately burned</option>
+          <option value="near_complete">(Near) complete</option>
+        </select>
+        <span class="muted small">How much of the above-ground vegetation was consumed.</span>
+      </label>
+
+      <label class="field">
         <span>Photo <span class="req">required</span></span>
         <input type="file" id="photo-input" accept="image/*" capture="environment">
         <span class="muted small">Include a ruler or a familiar object for scale.</span>
@@ -137,6 +149,19 @@
       <button type="button" id="form-save" class="btn btn--primary">Save measurement</button>
     </footer>
   </form>
+</dialog>
+
+<!-- ══════════ FIRE DETAIL / CHARTS ══════════ -->
+<dialog id="fire-dialog" class="sheet">
+  <div class="sheet__head">
+    <h2>Fire details</h2>
+    <button type="button" id="fire-close" class="icon-btn" aria-label="Close">✕</button>
+  </div>
+  <div class="sheet__body" id="fire-detail"></div>
+  <div class="sheet__foot">
+    <button type="button" id="fire-zoom" class="btn">Show on map</button>
+    <button type="button" id="fire-download" class="btn btn--primary">Download pack</button>
+  </div>
 </dialog>
 
 <div id="toast" class="toast" hidden></div>

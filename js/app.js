@@ -7,6 +7,16 @@ import * as Sync from './sync.js';
 import { QUALITY, PACK, FIREBASE, BASEMAPS } from './config.js';
 import { fmtBytes, fmtDistance } from './geo.js';
 import { INFO_HTML } from './info.js';
+import * as Chart from './chart.js';
+
+// Ordered from least to most consumed; the value is what gets stored, the
+// label is what the surveyor sees and what lands in the CSV.
+const COMBUSTION = {
+  unburned: 'Unburned',
+  light: 'Lightly burned',
+  moderate: 'Moderately burned',
+  near_complete: '(Near) complete',
+};
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -29,6 +39,7 @@ async function boot() {
   wireTabs();
   wireForm();
   wireButtons();
+  wireFireDetail();
   wireNetwork();
 
   await refreshPacks();
@@ -37,6 +48,7 @@ async function boot() {
     await MapView.initMap({
       onFireSelect: handleFireSelect,
       onManualPlace: handleManualPlace,
+      onFireDetails: openFireDetail,
       onIndexLoaded: () => renderFireList(),
     });
   } catch (err) {
@@ -50,8 +62,18 @@ async function boot() {
   updateStorageDisplay();
   updateSyncPill();
 
-  if ('serviceWorker' in navigator) {
+  // The service worker is cache-first, which is right in the field and
+  // maddening in development - it serves yesterday's JavaScript and every
+  // change looks like it did nothing. Skip it on localhost unless you are
+  // deliberately testing offline behaviour (add ?sw=1 for that).
+  const isLocal = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+  const wantSW = !isLocal || new URLSearchParams(location.search).has('sw');
+  if ('serviceWorker' in navigator && wantSW) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
+  } else if ('serviceWorker' in navigator) {
+    // Clear one left behind by an earlier session, or the stale cache wins.
+    navigator.serviceWorker.getRegistrations()
+      .then(rs => rs.forEach(r => r.unregister())).catch(() => {});
   }
 
   // A device that has never persisted is a device that can silently lose a
@@ -274,6 +296,52 @@ function wireButtons() {
   $('#sync-pill').addEventListener('click', () => showTab('data'));
 }
 
+// ══════════════════════════════════════════════════════════ fire detail
+async function openFireDetail(feature) {
+  const dlg = $('#fire-dialog');
+  const host = $('#fire-detail');
+  state.detailFire = feature;
+  const id = feature.properties.id;
+
+  host.innerHTML = '<p class="muted">Loading…</p>';
+  dlg.showModal();
+
+  const stats = await Chart.statsFor(id);
+  const pr = feature.properties;
+  const ok = Chart.renderFireChart(host, stats, {
+    name: Packs.fireName(pr),
+    firedate: pr.FIREDATE,
+    finaldate: pr.FINALDATE,
+    id: pr.id,
+  });
+  if (!ok) {
+    host.innerHTML =
+      `<h3>${esc(Packs.fireName(feature.properties))}</h3>
+       <p class="muted small">${esc(Packs.fireSubtitle(feature.properties))}</p>
+       <p class="chart__empty">No burn severity for this fire. Severity was only
+       computed for fires of 50 ha or more that had a usable cloud-free
+       Sentinel-2 pair before and after the burn.</p>`;
+  }
+
+  const st = Packs.packState(state.packs.get(id));
+  const dl = $('#fire-download');
+  dl.textContent = { none: 'Download pack', ready: 'Pack downloaded', stale: 'Update pack' }[st];
+  dl.disabled = st === 'ready';
+}
+
+function wireFireDetail() {
+  $('#fire-close').addEventListener('click', () => $('#fire-dialog').close());
+  $('#fire-zoom').addEventListener('click', () => {
+    $('#fire-dialog').close();
+    if (state.detailFire) { showTab('map'); MapView.zoomToFire(state.detailFire); }
+  });
+  $('#fire-download').addEventListener('click', () => {
+    const f = state.detailFire;
+    $('#fire-dialog').close();
+    if (f) handleFireSelect(f);
+  });
+}
+
 function openForm() {
   if (!state.gps) {
     toast('No GPS fix yet — tap the map to place the point manually.', 5000);
@@ -378,6 +446,7 @@ function updateMean() {
 
 function resetForm() {
   $$('[data-depth]').forEach(i => { i.value = ''; });
+  $('#combustion-input').value = '';
   $('#comment-input').value = '';
   $('#form-error').hidden = true;
   $('#photo-clear').click();
@@ -407,6 +476,11 @@ async function savePoint() {
   if (vals.some(v => v < 0 || v > QUALITY.maxDepthCm)) {
     return showErr(err, `Readings must be between 0 and ${QUALITY.maxDepthCm} cm.`);
   }
+  const combustion = $('#combustion-input').value;
+  // Required like the photo: it is one tap, and without it a depth reading
+  // cannot be interpreted against how much fuel actually burned. Delete these
+  // two lines to make it optional.
+  if (!combustion) return showErr(err, 'Choose how completely the vegetation burned.');
   if (!state.photoBlob) return showErr(err, 'A photo is required. It is how we check readings later.');
   if (!state.draft) return showErr(err, 'No location set.');
 
@@ -424,6 +498,7 @@ async function savePoint() {
     manualPlacement: !!state.draft.manual,
     depths,
     depthMean: vals.reduce((a, b) => a + b, 0) / vals.length,
+    combustion,
     comment: $('#comment-input').value.trim(),
     surveyor,
     hasPhoto: true,
@@ -479,6 +554,7 @@ function renderPointList() {
         <div class="point-card__depth">${p.depthMean != null ? p.depthMean.toFixed(1) : '?'} cm</div>
         <div class="muted small">${esc(p.fireName || 'Unassigned')} · ${new Date(p.createdAt).toLocaleDateString('en-GB')}</div>
         <div class="muted small">${p.depths.filter(d => d != null).length} reading(s)${p.accuracyM != null ? ` · ±${Math.round(p.accuracyM)} m` : ''}</div>
+        ${p.combustion ? `<div class="muted small">${esc(COMBUSTION[p.combustion] || p.combustion)}</div>` : ''}
       </div>
       <span class="badge badge--${p.status === 'pending' ? 'pending' : 'ready'}">${p.status === 'pending' ? 'Unsynced' : 'Synced'}</span>
     `;
@@ -542,7 +618,7 @@ function exportCsv() {
   if (!state.points.length) { toast('Nothing to export yet.'); return; }
   const cols = ['uuid', 'created_iso', 'surveyor', 'fire_id', 'fire_name', 'lat', 'lon',
     'gps_accuracy_m', 'manual_placement', 'depth_1', 'depth_2', 'depth_3', 'depth_4', 'depth_5',
-    'depth_mean_cm', 'depth_n', 'comment', 'photo_url', 'status'];
+    'depth_mean_cm', 'depth_n', 'combustion', 'comment', 'photo_url', 'status'];
   const q = (v) => {
     if (v == null) return '';
     const s = String(v);
@@ -555,6 +631,7 @@ function exportCsv() {
     ...[0, 1, 2, 3, 4].map(i => p.depths[i] ?? ''),
     p.depthMean != null ? p.depthMean.toFixed(2) : '',
     p.depths.filter(d => d != null).length,
+    p.combustion || '',
     p.comment, p.photoUrl, p.status,
   ].map(q).join(','));
 

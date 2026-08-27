@@ -348,11 +348,16 @@ function openFirePopup(feature) {
     <h3>${escapeHtml(fireName(p))}</h3>
     <div class="muted small">${escapeHtml(fireSubtitle(p))}</div>
     <div class="muted small">ID ${escapeHtml(String(p.id))}</div>
-    <button class="btn btn--sm ${state === 'ready' ? '' : 'btn--primary'}" ${state === 'ready' ? 'disabled' : ''}>${label}</button>
+    <button class="btn btn--sm ${state === 'ready' ? '' : 'btn--primary'}" data-act="pack" ${state === 'ready' ? 'disabled' : ''}>${label}</button>
+    <button class="btn btn--sm" data-act="detail">Land cover &amp; severity</button>
   `;
-  el.querySelector('button').addEventListener('click', () => {
+  el.querySelector('[data-act="pack"]').addEventListener('click', () => {
     map.closePopup();
     handlers.onFireSelect && handlers.onFireSelect(feature);
+  });
+  el.querySelector('[data-act="detail"]').addEventListener('click', () => {
+    map.closePopup();
+    handlers.onFireDetails && handlers.onFireDetails(feature);
   });
 
   L.popup({ maxWidth: 260 })

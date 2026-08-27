@@ -124,6 +124,7 @@ export async function pushPending(onProgress) {
         depths: p.depths,
         depthMean: p.depthMean,
         depthCount: p.depths.filter(d => d != null).length,
+        combustion: p.combustion || null,
         comment: p.comment || '',
         surveyor: p.surveyor || '',
         photoUrl,

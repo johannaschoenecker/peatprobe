@@ -171,6 +171,16 @@ export async function downloadPack(feature, onProgress, signal) {
     }
   } catch { /* severity is optional context; never fail a pack over it */ }
 
+  // Land cover x severity cross-tab, so the fire's charts work in the field.
+  let stats = null;
+  try {
+    const r = await fetch('data/dnbr/stats.json');
+    if (r.ok) {
+      const all = await r.json();
+      stats = (all.fires && all.fires[fireId]) || null;
+    }
+  } catch { /* charts are optional too */ }
+
   const pack = {
     fireId,
     name: fireName(feature.properties),
@@ -181,6 +191,7 @@ export async function downloadPack(feature, onProgress, signal) {
     failed,
     bytes,
     dnbr,
+    stats,
     version: APP.packVersion,
     basemap: BASEMAPS.active,
     downloadedAt: Date.now(),

@@ -4,8 +4,9 @@
 export const APP = {
   name: 'PeatProbe',
   // Bump when the pack format changes so downloaded packs are flagged stale.
-  // v2: tile cache keys are namespaced by layer, and packs may carry CORINE.
-  packVersion: 2,
+  // v2: tile cache keys namespaced by layer; packs may carry CORINE.
+  // v3: packs carry the dNBR overlay and the land cover x severity stats.
+  packVersion: 3,
 };
 
 // ---------------------------------------------------------------------------

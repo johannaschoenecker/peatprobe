@@ -4,7 +4,7 @@
 // they live in IndexedDB via the field-pack system, which gives us per-fire
 // download, progress, and deletion that a cache-everything worker cannot.
 
-const VERSION = 'peatprobe-v4';
+const VERSION = 'peatprobe-v5';
 
 const SHELL = [
   './',
@@ -32,6 +32,8 @@ const SHELL = [
   'manifest.webmanifest',
   'data/fires-index.geojson',
   'data/dnbr/index.json',
+  'data/dnbr/stats.json',
+  'js/chart.js',
 ];
 
 self.addEventListener('install', (e) => {
