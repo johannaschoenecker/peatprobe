@@ -307,18 +307,30 @@ const AREA_STEPS = [[0, 'All'], [10, '10+ ha'], [50, '50+ ha'], [100, '100+ ha']
 
 const areaFilterCtl = L.control({ position: 'topright' });
 
+// Collapsed to a single chip showing the current choice; the four options
+// only appear while choosing, then it folds away again - map space is scarce
+// on a phone.
 areaFilterCtl.onAdd = function () {
   const el = L.DomUtil.create('div', 'area-filter');
   L.DomEvent.disableClickPropagation(el);
-  el.innerHTML = '<span class="area-filter__lbl">Fire size</span>' +
+  el.innerHTML =
+    '<button type="button" class="area-filter__chip"></button>' +
+    '<span class="area-filter__opts">' +
     AREA_STEPS.map(([v, label]) =>
-      `<button type="button" data-v="${v}">${label}</button>`).join('');
+      `<button type="button" data-v="${v}">${label}</button>`).join('') +
+    '</span>';
+  el.querySelector('.area-filter__chip').addEventListener('click', () => {
+    el.classList.toggle('is-open');
+  });
   el.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-v]');
     if (!btn) return;
     setAreaFilter(Number(btn.dataset.v));
+    el.classList.remove('is-open');
     this.refresh();
   });
+  // Tapping the map closes the options, like every other transient control.
+  map.on('click movestart', () => el.classList.remove('is-open'));
   this._el = el;
   this.refresh();
   return el;
@@ -326,6 +338,10 @@ areaFilterCtl.onAdd = function () {
 
 areaFilterCtl.refresh = function () {
   if (!this._el) return;
+  const current = AREA_STEPS.find(([v]) => v === minAreaHa) || AREA_STEPS[0];
+  const chip = this._el.querySelector('.area-filter__chip');
+  chip.textContent = current[0] === 0 ? 'Size ▾' : `≥ ${current[0]} ha ▾`;
+  chip.classList.toggle('is-filtering', current[0] !== 0);
   this._el.querySelectorAll('button[data-v]').forEach((b) =>
     b.classList.toggle('is-on', Number(b.dataset.v) === minAreaHa));
 };
