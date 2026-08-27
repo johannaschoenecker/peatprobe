@@ -4,7 +4,7 @@
 // they live in IndexedDB via the field-pack system, which gives us per-fire
 // download, progress, and deletion that a cache-everything worker cannot.
 
-const VERSION = 'peatprobe-v6';
+const VERSION = 'peatprobe-v7';
 
 const SHELL = [
   './',

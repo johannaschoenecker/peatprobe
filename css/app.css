@@ -50,6 +50,16 @@ main{flex:1;position:relative;overflow:hidden}
   background:var(--peat-800);color:#fff;padding:10px 16px;border-radius:10px;
   font-size:14px;font-weight:600;max-width:88%;text-align:center;box-shadow:0 3px 12px rgba(0,0,0,.3)}
 
+/* download progress pill: lives on the map so starting a pack from the popup
+   gives immediate, continuous feedback there - not only in the Packs tab */
+.dl-pill{position:absolute;left:50%;transform:translateX(-50%);bottom:112px;z-index:850;
+  background:var(--peat-900);color:#F6F1E8;border-radius:999px;padding:9px 16px 10px;
+  min-width:230px;max-width:88%;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.dl-pill__bar{height:5px;background:rgba(246,241,232,.25);border-radius:999px;overflow:hidden;margin-bottom:6px}
+#dl-pill-fill{height:100%;width:0;background:var(--ember-lt);transition:width .25s}
+#dl-pill-text{font-size:12.5px;font-weight:600;display:block;text-align:center;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* buttons and fields */
 .btn{min-height:var(--tap);padding:0 16px;border-radius:10px;border:1.5px solid var(--line);
   background:var(--card);color:var(--ink);font-size:15px;font-weight:600;cursor:pointer}

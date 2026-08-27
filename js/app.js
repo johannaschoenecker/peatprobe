@@ -31,7 +31,14 @@ const state = {
   listFilter: { text: '', downloadedOnly: false, near: null },
   photoUrls: new Map(),
   downloading: new Set(),
+  dlProgress: new Map(),   // fireId -> { name, done, total } for the map pill
 };
+
+// Closing or reloading mid-download silently loses the pack - the browser
+// kills the fetches and nothing is saved. Ask first.
+window.addEventListener('beforeunload', (e) => {
+  if (state.downloading.size) { e.preventDefault(); e.returnValue = ''; }
+});
 
 // ══════════════════════════════════════════════════════════ boot
 async function boot() {
@@ -118,10 +125,16 @@ function packStateMap() {
 
 async function handleFireSelect(feature) {
   const id = feature.properties.id;
-  if (state.downloading.has(id)) return;
+  // Every early exit says why. A silent return after a tap is
+  // indistinguishable from a broken button.
+  if (state.downloading.has(id)) {
+    toast('That pack is already downloading — progress is on the map.', 3500);
+    return;
+  }
 
   const existing = state.packs.get(id);
   if (existing && Packs.packState(existing) === 'ready') {
+    toast('Pack already downloaded — this fire works offline.', 3000);
     MapView.zoomToFire(feature);
     return;
   }
@@ -142,14 +155,19 @@ async function handleFireSelect(feature) {
 
 async function downloadFire(feature) {
   const id = feature.properties.id;
+  const name = Packs.fireName(feature.properties);
   state.downloading.add(id);
+  state.dlProgress.set(id, { name, done: 0, total: 1 });
   renderFireList();
+  updateDlPill();
 
   const bar = document.querySelector(`[data-progress="${cssEscape(id)}"] > div`);
   try {
     const pack = await Packs.downloadPack(feature, ({ done, total }) => {
       const el = document.querySelector(`[data-progress="${cssEscape(id)}"] > div`) || bar;
       if (el) el.style.width = `${Math.round((done / total) * 100)}%`;
+      state.dlProgress.set(id, { name, done, total });
+      updateDlPill();
     });
     state.packs.set(id, pack);
     MapView.setPackStates(packStateMap());
@@ -166,9 +184,25 @@ async function downloadFire(feature) {
     toast(err.name === 'AbortError' ? 'Download cancelled' : `Download failed: ${err.message}`, 5000);
   } finally {
     state.downloading.delete(id);
+    state.dlProgress.delete(id);
+    updateDlPill();
     await updateStorageDisplay();
     renderFireList();
   }
+}
+
+/** One pill covers all running downloads; hidden when there are none. */
+function updateDlPill() {
+  const pill = $('#dl-pill');
+  const jobs = [...state.dlProgress.values()];
+  if (!jobs.length) { pill.hidden = true; return; }
+  pill.hidden = false;
+  const done = jobs.reduce((a, j) => a + j.done, 0);
+  const total = jobs.reduce((a, j) => a + j.total, 0) || 1;
+  $('#dl-pill-fill').style.width = `${Math.round((done / total) * 100)}%`;
+  $('#dl-pill-text').textContent = jobs.length === 1
+    ? `Downloading ${jobs[0].name} · ${Math.round((done / total) * 100)}%`
+    : `Downloading ${jobs.length} packs · ${Math.round((done / total) * 100)}%`;
 }
 
 async function deleteFirePack(fireId) {
