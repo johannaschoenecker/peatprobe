@@ -1,56 +1,69 @@
-# Firebase setup — 20 minutes, once
+# Firebase einrichten — einmalig, ca. 20 Minuten
 
-No CLI needed (it requires Node.js, which this machine doesn't have).
-Everything happens in the browser console.
+Ganz ohne CLI (die bräuchte Node.js, das auf diesem Rechner fehlt).
+Alles passiert in der Browser-Konsole: <https://console.firebase.google.com>
 
-## 1. Create the project — console.firebase.google.com
+Die Konsole übersetzt nicht alle Begriffe — manches bleibt auch auf Deutsch
+englisch (z. B. „Firestore Database", „App Check"). Wo ich mir beim deutschen
+Label nicht sicher bin, steht das englische Original in Klammern.
 
-- **Add project** → name it (e.g. `peatprobe`) → Google Analytics OFF (not needed)
+## 1. Projekt anlegen
 
-## 2. Authentication
+- **„Projekt hinzufügen"** → Name z. B. `peatprobe` → Google Analytics **AUS**
+  (wird nicht gebraucht)
 
-- Build → **Authentication** → Get started
-- Sign-in method → **Google** → Enable → set a support email → Save
-- **Settings → Authorised domains → Add domain:**
-  - `YOUR-USERNAME.github.io`   ← forget this and sign-in fails silently in production
-  - (`localhost` is already there)
+## 2. Authentication (Anmeldung)
 
-## 3. Firestore
+- Menü „Erstellen" (Build) → **Authentication** → „Jetzt starten"
+- Tab **Anmeldemethode** (Sign-in method) → **Google** → Aktivieren →
+  Support-E-Mail wählen → Speichern
+- **Einstellungen → Autorisierte Domains → Domain hinzufügen:**
+  - `DEIN-NUTZERNAME.github.io`   ← ohne diesen Eintrag schlägt die Anmeldung
+    in der veröffentlichten App **stumm** fehl (kein Fehler, es passiert
+    einfach nichts)
+  - (`localhost` steht schon drin)
 
-- Build → **Firestore Database** → Create database
-- Location: **europe-west2 (London)** — cannot be changed later
-- Start in **production mode**
-- **Rules tab** → delete everything → paste the whole of `firestore.rules`
-  from this repo → **Publish**
+## 3. Firestore (Datenbank)
 
-## 4. Storage (photos)
+- „Erstellen" → **Firestore Database** → „Datenbank erstellen"
+- Standort: **europe-west2 (London)** — lässt sich später **nicht** mehr
+  ändern; UK-Standort passt zum Datenschutz-Gespräch mit Cambridge
+- Im **Produktionsmodus** starten (production mode)
+- Tab **Regeln** (Rules) → alles löschen → kompletten Inhalt von
+  `firestore.rules` aus diesem Repo einfügen → **Veröffentlichen** (Publish)
 
-- Build → **Storage** → Get started → same location
-- This prompts an upgrade to the **Blaze** plan (pay as you go; the free
-  allowances almost certainly cover you, but a card is required)
-- **Rules tab** → paste the whole of `storage.rules` → **Publish**
+## 4. Storage (Fotos)
 
-## 5. Budget alert — do not skip
+- „Erstellen" → **Storage** → „Jetzt starten" → gleicher Standort
+- Dabei fordert Firebase ein Upgrade auf den **Blaze-Tarif** (nutzungsbasiert;
+  die Freikontingente reichen sehr wahrscheinlich aus, aber eine
+  Kreditkarte muss hinterlegt werden)
+- Tab **Regeln** → kompletten Inhalt von `storage.rules` einfügen →
+  **Veröffentlichen**
 
-- ⚙ → Usage and billing → Details & settings → **Set a budget alert at £5**
+## 5. Budgetwarnung — nicht überspringen!
 
-## 6. Get the web config
+- ⚙ → **Nutzung und Abrechnung** (Usage and billing) → Details & Einstellungen
+  → **Budgetwarnung bei ca. 5 € einrichten**
 
-- ⚙ → Project settings → Your apps → **</> (web)** → nickname `peatprobe`
-  → (no hosting) → Register
-- Copy the `firebaseConfig` object it shows
+## 6. Web-Konfiguration holen
 
-## 7. Wire it into the app
+- ⚙ → **Projekteinstellungen** → „Meine Apps" (Your apps) → **</>**-Symbol
+  (Web) → Spitzname `peatprobe` → Firebase Hosting **nicht** ankreuzen →
+  „App registrieren"
+- Das angezeigte `firebaseConfig`-Objekt kopieren
 
-In `js/config.js`, set `FIREBASE.enabled = true` and paste the values:
+## 7. In die App eintragen
+
+In `js/config.js`: `FIREBASE.enabled = true` setzen und die Werte einfügen:
 
 ```js
 export const FIREBASE = {
   enabled: true,
   config: {
-    apiKey: '...',            // fine to be public - it is an identifier,
-    authDomain: '...',        // not a secret; security lives in the rules
-    projectId: '...',
+    apiKey: '...',            // darf öffentlich sein - das ist eine Kennung,
+    authDomain: '...',        // kein Geheimnis; die Sicherheit steckt in den
+    projectId: '...',         // Regeln, nicht im Schlüssel
     storageBucket: '...',
     messagingSenderId: '...',
     appId: '...',
@@ -58,27 +71,32 @@ export const FIREBASE = {
 };
 ```
 
-## 8. Make yourself admin
+## 8. Dich selbst zur Administratorin machen
 
-1. Open the deployed app (or localhost) → **My data → Sync now** → sign in
-   with your Google account. Your first point can sync now.
-2. Firebase console → Authentication → Users → copy your **User UID**
-3. Firestore → **Start collection** → id `admins` → document id = *paste your
-   UID* → add any field (e.g. `note: "me"`) → Save
+1. Die App öffnen (deployed oder localhost) → **My data → Sync now** → mit
+   deinem Google-Konto anmelden. Ab jetzt können Punkte synchronisieren.
+2. Firebase-Konsole → Authentication → Tab **Nutzer** (Users) → deine
+   **Nutzer-UID** (User UID) kopieren
+3. Firestore → **„Sammlung starten"** (Start collection) → ID `admins` →
+   Dokument-ID = *deine UID einfügen* → irgendein Feld anlegen
+   (z. B. `note: "ich"`) → Speichern
 
-Nobody else can add themselves: the rules allow no client writes to `admins`.
+Niemand sonst kann sich selbst eintragen: Die Regeln erlauben keinerlei
+Schreibzugriff von Clients auf `admins`.
 
-## What you get
+## Was du damit bekommst
 
-- Volunteers sign in with Google; measurements land in `measurements`
-  with `status: pending_review`
-- Photos land in Storage under `photos/<fireId>/<uuid>.jpg`
-- Everyone who downloads a fire's pack sees everyone's synced points for it
-- Review queue: Firestore console → filter `status == pending_review` →
-  edit to `verified` (an admin-only action under the rules)
+- Freiwillige melden sich mit Google an; Messungen landen in der Sammlung
+  `measurements` mit `status: pending_review`
+- Fotos landen in Storage unter `photos/<fireId>/<uuid>.jpg`
+- Wer das Feld-Paket eines Feuers herunterlädt, sieht alle synchronisierten
+  Punkte aller Beteiligten für dieses Feuer
+- Prüf-Warteschlange: Firestore-Konsole → nach `status == pending_review`
+  filtern → auf `verified` ändern (laut Regeln nur für Admins möglich)
 
-## Before volunteers — still outstanding
+## Vor dem Freiwilligen-Start — noch offen
 
-- **App Check** (Build → App Check, reCAPTCHA v3) — blocks scripted abuse of
-  the open endpoint. Turn on *enforcement* for Firestore + Storage.
-- Privacy notice + Cambridge DPO conversation.
+- **App Check** („Erstellen" → App Check, reCAPTCHA v3) — blockiert
+  automatisierten Missbrauch des offenen Endpunkts. Danach die
+  **Erzwingung** (enforcement) für Firestore + Storage aktivieren.
+- Datenschutzerklärung + Gespräch mit dem Datenschutzbüro in Cambridge.
