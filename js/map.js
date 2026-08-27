@@ -4,14 +4,20 @@
 import * as DB from './db.js';
 import { BASEMAPS, SATELLITE, LAYERS, PACK } from './config.js';
 import { tileKey, pointInGeometry, haversine } from './geo.js';
-import { fireName, fireSubtitle } from './packs.js';
+import { fireName, fireSubtitle, dnbrIndex, dnbrKey } from './packs.js';
 
 const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
 const UK_CENTRE = [54.6, -3.4];
+const DOT_ZOOM_MAX = 10;   // dots below this zoom, real perimeters at/above
 
 let map, firePolys, fireDots, pointsLayer, gpsMarker, gpsCircle;
 let fireIndex = null;          // GeoJSON FeatureCollection
 let packStates = new Map();    // fireId -> 'none' | 'ready' | 'stale'
+let dotById = new Map();       // fireId -> centroid marker, so it can restyle
+let dnbrGroup;                 // burn severity image overlays
+let dnbrOverlays = new Map();  // fireId -> L.ImageOverlay
+let dnbrMeta;                  // data/dnbr/index.json, or null
+let corineLayer;               // kept so the legend can tell if it is showing
 let handlers = {};
 let placingMode = false;
 
@@ -62,7 +68,18 @@ const STYLE = {
   stale: { color: '#EA580C', weight: 2.5, dashArray: '5,4', fillColor: '#FBBF24', fillOpacity: 0.28 },
 };
 
-const styleFor = (f) => STYLE[packStates.get(f.properties.id) || 'none'];
+// Centroid dots carry the same status colour as the perimeters. Below the
+// polygon zoom threshold these dots ARE the fire as far as the user is
+// concerned, so leaving them a fixed colour made downloaded packs look
+// identical to undownloaded ones across most of the country.
+const DOT_STYLE = {
+  none:  { radius: 7, color: '#3A2E24', weight: 2, fillColor: '#B7A794', fillOpacity: 0.95 },
+  ready: { radius: 8, color: '#1F1712', weight: 2.5, fillColor: '#2F7D45', fillOpacity: 1 },
+  stale: { radius: 8, color: '#8A5A00', weight: 2.5, fillColor: '#FBBF24', fillOpacity: 1 },
+};
+
+const stateOf = (id) => packStates.get(id) || 'none';
+const styleFor = (f) => STYLE[stateOf(f.properties.id)];
 
 // ── init ──────────────────────────────────────────────────────────────────
 export async function initMap(opts) {
@@ -92,12 +109,15 @@ export async function initMap(opts) {
     maxClusterRadius: 40, showCoverageOnHover: false, chunkedLoading: true,
   }).addTo(map);
 
+  dnbrGroup = L.layerGroup();
+
   const overlays = {
     'Fire perimeters': firePolys,
     'Measurements': pointsLayer,
+    'Burn severity (dNBR)': dnbrGroup,
   };
   if (LAYERS.corineAvailable) {
-    overlays['Land cover (CORINE)'] = offlineTiles({
+    overlays['Land cover (CORINE)'] = corineLayer = offlineTiles({
       url: LAYERS.corineTiles,
       attribution: '&copy; European Union, Copernicus Land Monitoring Service / EEA',
       maxZoom: BASEMAPS[BASEMAPS.active].maxZoom,
@@ -112,9 +132,16 @@ export async function initMap(opts) {
   ).addTo(map);
 
   map.on('zoomend', syncDotVisibility);
+  map.on('moveend zoomend', syncDnbrOverlays);
+  map.on('overlayadd overlayremove', (e) => {
+    if (e.layer === dnbrGroup) syncDnbrOverlays();
+    legend.refresh();
+  });
   map.on('click', (e) => {
     if (placingMode) { handlers.onManualPlace && handlers.onManualPlace(e.latlng); }
   });
+
+  legend.addTo(map);
 
   await loadFireIndex();
   return map;
@@ -134,11 +161,12 @@ async function loadFireIndex() {
 
   firePolys.addData(fireIndex);
 
-  const dots = fireIndex.features.map((f) =>
-    L.circleMarker([f._c.lat, f._c.lon], {
-      radius: 6, color: '#2C221A', weight: 1.5, fillColor: '#EA580C', fillOpacity: 0.9,
-    }).on('click', () => openFirePopup(f))
-  );
+  const dots = fireIndex.features.map((f) => {
+    const m = L.circleMarker([f._c.lat, f._c.lon], DOT_STYLE.none)
+      .on('click', () => openFirePopup(f));
+    dotById.set(f.properties.id, m);
+    return m;
+  });
   fireDots.addLayers(dots);
   syncDotVisibility();
   handlers.onIndexLoaded && handlers.onIndexLoaded(fireIndex);
@@ -155,10 +183,144 @@ function representativePoint(geom) {
 }
 
 function syncDotVisibility() {
-  const showDots = map.getZoom() < 11;
+  // Below this, most perimeters are a pixel or two across and effectively
+  // untappable, so the centroid dots stand in for them. At or above it the
+  // real perimeters take over and are clicked directly.
+  const showDots = map.getZoom() < DOT_ZOOM_MAX;
   if (showDots && !map.hasLayer(fireDots)) map.addLayer(fireDots);
   if (!showDots && map.hasLayer(fireDots)) map.removeLayer(fireDots);
 }
+
+// ── burn severity overlays ────────────────────────────────────────────────
+// One ImageOverlay per fire, created lazily for whatever is in view. Only 162
+// of the 1,599 fires have severity - the rest were too small or had no
+// cloud-free Sentinel-2 pair - so a missing overlay is normal.
+const DNBR_MIN_ZOOM = 9;
+const DNBR_MAX_OVERLAYS = 60;
+
+async function dnbrSrc(fireId) {
+  const blob = await DB.getTile(dnbrKey(fireId));      // packed for offline
+  return blob ? URL.createObjectURL(blob)
+              : `data/dnbr/${encodeURIComponent(fireId)}.png`;
+}
+
+/**
+ * Where a fire's severity bounds come from. index.json covers everything while
+ * online; downloaded packs carry their own copy, so severity keeps working in
+ * the field even if index.json was never cached.
+ */
+async function dnbrEntries() {
+  const out = new Map();
+  if (dnbrMeta === undefined) dnbrMeta = await dnbrIndex();
+  if (dnbrMeta && dnbrMeta.fires) {
+    for (const [id, e] of Object.entries(dnbrMeta.fires)) out.set(id, e);
+  }
+  for (const p of await DB.allPacks()) {
+    if (p.dnbr && !out.has(p.fireId)) out.set(p.fireId, p.dnbr);
+  }
+  return out;
+}
+
+function dropOverlay(id, ov) {
+  dnbrGroup.removeLayer(ov);
+  if (ov._ppUrl) URL.revokeObjectURL(ov._ppUrl);
+  dnbrOverlays.delete(id);
+}
+
+async function syncDnbrOverlays() {
+  if (!dnbrGroup || !map.hasLayer(dnbrGroup)) return;
+  if (map.getZoom() < DNBR_MIN_ZOOM) {
+    for (const [id, ov] of [...dnbrOverlays]) dropOverlay(id, ov);
+    return;
+  }
+  const entries = await dnbrEntries();
+  if (!entries.size) return;
+
+  const view = map.getBounds();
+  const keep = view.pad(1);
+  for (const [id, ov] of [...dnbrOverlays]) {
+    if (!keep.intersects(ov.getBounds())) dropOverlay(id, ov);
+  }
+
+  let budget = DNBR_MAX_OVERLAYS - dnbrOverlays.size;
+  for (const [id, e] of entries) {
+    if (budget <= 0) break;
+    if (dnbrOverlays.has(id)) continue;
+    const b = L.latLngBounds(e.bounds);
+    if (!view.intersects(b)) continue;
+    const src = await dnbrSrc(id);
+    const ov = L.imageOverlay(src, b, { opacity: 0.75, interactive: false });
+    if (src.startsWith('blob:')) ov._ppUrl = src;
+    dnbrOverlays.set(id, ov);
+    dnbrGroup.addLayer(ov);
+    budget--;
+  }
+}
+
+// ── legend ────────────────────────────────────────────────────────────────
+// CORINE has 44 classes, which is unreadable on a phone. These are the ones
+// that matter for peat fire work; everything else falls under "other".
+const LEGEND = {
+  corine: {
+    title: 'Land cover',
+    items: [
+      ['#4D4DFF', 'Peat bogs'], ['#A6A6FF', 'Inland marshes'],
+      ['#A6FF80', 'Moors &amp; heathland'], ['#CCF24D', 'Natural grassland'],
+      ['#A6F200', 'Transitional scrub'], ['#00A600', 'Coniferous forest'],
+      ['#80FF00', 'Broadleaved forest'], ['#CCFFCC', 'Sparsely vegetated'],
+      ['#E6E64D', 'Pasture'], ['#FFFFA8', 'Arable'],
+      ['#FF0000', 'Built-up'], ['#80F2E6', 'Water'],
+    ],
+    note: 'CORINE 2018, 100 m, 25 ha minimum mapping unit.',
+  },
+  dnbr: {
+    title: 'Burn severity',
+    items: [
+      ['#7F0000', 'High'], ['#E34A33', 'Moderate-high'],
+      ['#FC8D59', 'Moderate-low'], ['#FEE08B', 'Low'],
+      ['#D9D9D9', 'Unburned'], ['#91CF60', 'Regrowth'],
+    ],
+    note: 'dNBR, Key &amp; Benson thresholds. Calibrated on forest, not bog - relative severity, not peat depth.',
+  },
+};
+
+const legend = L.control({ position: 'bottomright' });
+
+legend.onAdd = function () {
+  const el = L.DomUtil.create('div', 'map-legend');
+  L.DomEvent.disableClickPropagation(el);
+  L.DomEvent.disableScrollPropagation(el);
+  this._el = el;
+  this.refresh();
+  return el;
+};
+
+legend.refresh = function () {
+  const el = this._el;
+  if (!el) return;
+  const active = [];
+  if (corineLayer && map.hasLayer(corineLayer)) active.push('corine');
+  if (dnbrGroup && map.hasLayer(dnbrGroup)) active.push('dnbr');
+
+  if (!active.length) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+
+  const wasOpen = el.classList.contains('is-open');
+  el.innerHTML =
+    '<button class="map-legend__toggle" type="button">Legend</button>' +
+    '<div class="map-legend__body">' +
+    active.map((k) => {
+      const s = LEGEND[k];
+      return `<div class="map-legend__section"><h4>${s.title}</h4>` +
+        s.items.map(([c, l]) =>
+          `<div class="map-legend__row"><i style="background:${c}"></i>${l}</div>`).join('') +
+        `<p class="map-legend__note">${s.note}</p></div>`;
+    }).join('') +
+    '</div>';
+  if (wasOpen) el.classList.add('is-open');
+  el.querySelector('.map-legend__toggle')
+    .addEventListener('click', () => el.classList.toggle('is-open'));
+};
 
 // ── popups ────────────────────────────────────────────────────────────────
 function openFirePopup(feature) {
@@ -192,6 +354,9 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g,
 export function setPackStates(states) {
   packStates = states;
   if (firePolys) firePolys.setStyle(styleFor);
+  // Restyle the centroid dots too - these are what is visible and clickable
+  // below the polygon threshold.
+  for (const [id, marker] of dotById) marker.setStyle(DOT_STYLE[stateOf(id)]);
 }
 
 export function getFireIndex() { return fireIndex; }

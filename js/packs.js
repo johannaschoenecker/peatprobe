@@ -16,6 +16,20 @@ const BYTES_PER_TILE_GUESS = 19 * 1024;
 // Categorical PNGs with a handful of flat colours; nothing like a topo tile.
 const CORINE_BYTES_GUESS = 2.5 * 1024;
 
+/** Cache key for a fire's severity overlay, kept clear of the tile namespaces. */
+export const dnbrKey = (fireId) => `dnbr/${fireId}`;
+
+let _dnbrIndex;
+/** data/dnbr/index.json, fetched once. Null if severity was never generated. */
+export function dnbrIndex() {
+  if (_dnbrIndex === undefined) {
+    _dnbrIndex = fetch('data/dnbr/index.json')
+      .then(r => (r.ok ? r.json() : null))
+      .catch(() => null);
+  }
+  return _dnbrIndex;
+}
+
 const expand = (tpl, z, x, y) =>
   tpl.replace('{z}', z).replace('{x}', x).replace('{y}', y).replace('{s}', 'a');
 
@@ -137,6 +151,26 @@ export async function downloadPack(feature, onProgress, signal) {
     if (r.ok) detail = await r.json();
   } catch { /* fall back to the simplified index geometry */ }
 
+  // Burn severity overlay. Only 162 of the 1,599 fires have one (the rest are
+  // too small, or had no usable cloud-free imagery), so absence is normal.
+  let dnbr = null;
+  try {
+    const meta = await dnbrIndex();
+    const entry = meta && meta.fires[fireId];
+    if (entry) {
+      const r = await fetch(`data/dnbr/${encodeURIComponent(fireId)}.png`);
+      if (r.ok) {
+        const blob = await r.blob();
+        await DB.putTile(dnbrKey(fireId), fireId, blob);
+        bytes += blob.size;
+        // Bounds live on the pack, so the overlay works offline without
+        // needing index.json to have been cached.
+        dnbr = { bounds: entry.bounds, severeFrac: entry.severe_frac,
+                 mean: entry.dnbr_mean, p90: entry.dnbr_p90 };
+      }
+    }
+  } catch { /* severity is optional context; never fail a pack over it */ }
+
   const pack = {
     fireId,
     name: fireName(feature.properties),
@@ -146,6 +180,7 @@ export async function downloadPack(feature, onProgress, signal) {
     tileCount: est.count,
     failed,
     bytes,
+    dnbr,
     version: APP.packVersion,
     basemap: BASEMAPS.active,
     downloadedAt: Date.now(),

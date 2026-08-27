@@ -137,9 +137,45 @@ Not shipped — you need to download it yourself.
 
 The app degrades gracefully when the tiles are absent, so this can wait.
 
-**Note on resolution:** CORINE is 100 m, against UKCEH LCM's 10 m. It is
-landscape context, not something to measure against. If you want open *and*
-comparable to LCM, look at ESA WorldCover (10 m, CC-BY).
+**Note on resolution:** CORINE is 100 m with a 25 ha minimum mapping unit,
+against UKCEH LCM's 10 m. It is landscape context, not something to measure
+against. If you want open *and* comparable to LCM, look at ESA WorldCover
+(10 m, CC-BY).
+
+**UKCEH cannot be used here.** Its EDINA licence forbids displaying or
+distributing the data on any electronic network, and the only sharing
+exception covers people who hold the same licence. GitHub Pages has no access
+control, so "internal use" does not rescue it. Keep using LCM in QGIS —
+desktop analysis is within the licence — and sample land cover at your survey
+points during analysis rather than shipping the raster.
+
+---
+
+## Burn severity (dNBR)
+
+Sentinel-2 dNBR, computed in Earth Engine and shipped as one PNG per fire.
+
+```bash
+# 1. run tools/gee_dnbr.js in the Code Editor, download to data/source/dnbr/
+# 2. convert to overlays + bounds:
+python3 tools/build_dnbr_overlays.py
+```
+
+162 of the 1,599 fires have severity (those ≥50 ha with usable cloud-free
+imagery). The PNGs total **1.2 MB** — median 2.8 kB each — and each fire's
+overlay is bundled into its field pack, so severity works offline.
+
+Why per-fire images rather than a tile pyramid: the burn scars total ~800 km²
+scattered across the whole country, so a pyramid would be almost entirely
+empty tiles. And because the rasters are already EPSG:3857 and Leaflet's map
+is EPSG:3857, an `ImageOverlay` stretched between projected corners is exact,
+not approximate.
+
+⚠️ **dNBR is not burn depth.** It measures surface change, and the Key & Benson
+thresholds come from North American forest, not blanket bog. Treat it as
+context and as a sampling stratifier. The genuinely interesting use is the
+reverse: PeatProbe's ground measurements are what you would need to test how
+well dNBR predicts peat consumption.
 
 ---
 

@@ -4,7 +4,7 @@
 // they live in IndexedDB via the field-pack system, which gives us per-fire
 // download, progress, and deletion that a cache-everything worker cannot.
 
-const VERSION = 'peatprobe-v2';
+const VERSION = 'peatprobe-v3';
 
 const SHELL = [
   './',
@@ -31,6 +31,7 @@ const SHELL = [
   'icons/logo.svg',
   'manifest.webmanifest',
   'data/fires-index.geojson',
+  'data/dnbr/index.json',
 ];
 
 self.addEventListener('install', (e) => {
@@ -38,7 +39,14 @@ self.addEventListener('install', (e) => {
     caches.open(VERSION)
       // addAll is all-or-nothing; add individually so one missing optional
       // file cannot brick the whole install.
-      .then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => {}))))
+      //
+      // cache:'reload' bypasses the browser's HTTP cache. Without it a new
+      // service worker version happily fills its fresh cache with STALE copies
+      // the HTTP cache already held, and a deploy silently ships old
+      // JavaScript to everyone.
+      .then(c => Promise.all(
+        SHELL.map(u => c.add(new Request(u, { cache: 'reload' })).catch(() => {}))
+      ))
       .then(() => self.skipWaiting())
   );
 });

@@ -117,9 +117,23 @@ any landowner contacts here. ]]</p>
   <li>Still stuck: [[ your support email ]]</li>
 </ul>
 
+<h3>Map layers</h3>
+<p>Tap <strong>Legend</strong> at the bottom right of the map to see what the colours
+mean. Layers are toggled from the control at the top right.</p>
+<ul>
+  <li><strong>Land cover</strong> — CORINE 2018. Useful context, but 100 m resolution
+  with a 25 ha minimum patch size, so small bogs will not show.</li>
+  <li><strong>Burn severity</strong> — dNBR from Sentinel-2, available for the larger
+  fires only. It measures how much the surface changed, <em>not</em> how deep the
+  peat burned, and its thresholds come from forest studies rather than bog. Use
+  it to spread your measurements across a range of severities — that is exactly
+  the comparison this project needs.</li>
+</ul>
+
 <h3>Credits</h3>
 <p>Fire perimeters from the <strong>European Forest Fire Information System (EFFIS)</strong>,
-Copernicus Emergency Management Service. Land cover from <strong>CORINE Land Cover</strong>,
-Copernicus. Base map &copy; OpenStreetMap contributors. Built for
+Copernicus Emergency Management Service. Land cover from <strong>CORINE Land Cover
+2018</strong>, Copernicus / EEA. Burn severity derived from <strong>Sentinel-2</strong>,
+Copernicus. Base map &copy; MapTiler and OpenStreetMap contributors. Built for
 [[ your project / institution ]].</p>
 `;
