@@ -36,11 +36,15 @@ main{flex:1;position:relative;overflow:hidden}
 .pane h2{margin:.2em 0 .4em;font-size:20px}
 
 /* map overlay */
-.map-overlay{position:absolute;right:14px;bottom:16px;z-index:500;
-  display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+/* Actions live alone in the bottom-right; every Leaflet control (attribution,
+   scale, legend) is pushed to the bottom-left so nothing can sit on top of
+   the Record button. Laid out as a row so Record stays in the thumb corner. */
+.map-overlay{position:absolute;right:12px;bottom:42px;z-index:800;
+  display:flex;flex-direction:row;gap:10px;align-items:center}
 .fab{border:0;border-radius:999px;font-weight:700;cursor:pointer;
   box-shadow:0 3px 12px rgba(0,0,0,.3);min-height:var(--tap)}
-.fab--primary{background:var(--ember);color:#fff;font-size:16px;padding:0 22px}
+.fab--primary{background:var(--ember);color:#fff;font-size:16px;padding:0 22px;
+  min-width:132px;box-shadow:0 3px 14px rgba(234,88,12,.45)}
 .fab--ghost{background:#fff;color:var(--peat-800);width:var(--tap);font-size:22px;padding:0}
 .map-hint{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:500;
   background:var(--peat-800);color:#fff;padding:10px 16px;border-radius:10px;
@@ -157,9 +161,21 @@ input:focus,textarea:focus{outline:2px solid var(--ember);outline-offset:1px}
 
 /* leaflet tweaks */
 .leaflet-container{background:#DDD6C8;font-family:inherit}
+/* Attribution must stay clear of the Record button. Capped to the left 58% so
+   it wraps downward rather than stretching under the action buttons. */
+.leaflet-control-attribution{max-width:58%;line-height:1.35;font-size:10px;
+  background:rgba(255,255,255,.82)!important;border-radius:0 6px 0 0;padding:2px 6px!important}
 .fire-popup{font-size:14px;min-width:190px}
 .fire-popup h3{margin:0 0 4px;font-size:15px}
 .fire-popup .btn{margin-top:8px;width:100%}
 .pt-marker{background:var(--ember);border:2.5px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .pt-marker--pending{background:var(--muted)}
 @media (min-width:760px){ .tab{font-size:13px} }
+
+/* Very narrow screens: the action row and the attribution start competing for
+   the same strip, so tighten the row rather than letting them overlap. */
+@media (max-width:340px){
+  .fab--primary{min-width:0;padding:0 14px;font-size:15px}
+  .map-overlay{gap:8px;right:10px}
+  .leaflet-control-attribution{max-width:44%}
+}

@@ -88,17 +88,29 @@ export async function initMap(opts) {
   map = L.map('map', {
     center: UK_CENTRE, zoom: 6, zoomControl: false,
     preferCanvas: true, tap: true,
+    // ONE shared canvas renderer for every vector layer. Giving the fire
+    // polygons their own L.canvas() put a second canvas in the overlay pane,
+    // and stacked canvases do not pass clicks through to each other - the top
+    // one swallowed every click aimed at a perimeter.
+    renderer: L.canvas({ padding: 0.3 }),
+    // Default attribution sits bottom-right, directly under the Record
+    // button. Everything informational goes bottom-left instead.
+    attributionControl: false,
   });
   L.control.zoom({ position: 'topleft' }).addTo(map);
   L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
+  L.control.attribution({ position: 'bottomleft', prefix: '' }).addTo(map);
 
   const base = offlineTiles(BASEMAPS[BASEMAPS.active], 'base').addTo(map);
   const sat = offlineTiles(SATELLITE, 'sat');
 
   firePolys = L.geoJSON(null, {
     style: styleFor,
-    renderer: L.canvas({ padding: 0.3 }),
-    onEachFeature: (f, layer) => layer.on('click', () => openFirePopup(f)),
+    onEachFeature: (f, layer) => {
+      layer.on('click', () => openFirePopup(f));
+      // Name on hover, so you can tell perimeters apart without opening each.
+      layer.bindTooltip(() => fireName(f.properties), { sticky: true, direction: 'top' });
+    },
   }).addTo(map);
 
   fireDots = L.markerClusterGroup({
@@ -119,7 +131,7 @@ export async function initMap(opts) {
   if (LAYERS.corineAvailable) {
     overlays['Land cover (CORINE)'] = corineLayer = offlineTiles({
       url: LAYERS.corineTiles,
-      attribution: '&copy; European Union, Copernicus Land Monitoring Service / EEA',
+      attribution: 'CORINE &copy; Copernicus/EEA',
       maxZoom: BASEMAPS[BASEMAPS.active].maxZoom,
       maxNativeZoom: LAYERS.corineMaxZoom,
       opacity: 0.6,   // it is context, not the thing you navigate by
@@ -163,7 +175,9 @@ async function loadFireIndex() {
 
   const dots = fireIndex.features.map((f) => {
     const m = L.circleMarker([f._c.lat, f._c.lon], DOT_STYLE.none)
-      .on('click', () => openFirePopup(f));
+      .on('click', () => openFirePopup(f))
+      .bindTooltip(`${fireName(f.properties)} · ${fireSubtitle(f.properties)}`,
+                   { direction: 'top', offset: [0, -6] });
     dotById.set(f.properties.id, m);
     return m;
   });
@@ -284,7 +298,7 @@ const LEGEND = {
   },
 };
 
-const legend = L.control({ position: 'bottomright' });
+const legend = L.control({ position: 'bottomleft' });
 
 legend.onAdd = function () {
   const el = L.DomUtil.create('div', 'map-legend');
