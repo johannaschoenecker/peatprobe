@@ -11,7 +11,8 @@
 import { FIREBASE } from './config.js';
 import * as DB from './db.js';
 
-const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
+// Keep in step with the version the Firebase console currently recommends.
+const SDK = 'https://www.gstatic.com/firebasejs/12.18.0';
 
 let fb = null;          // { app, auth, db, storage, fns }
 let initPromise = null;

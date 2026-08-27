@@ -115,14 +115,16 @@ export const LAYERS = {
 // Leave `enabled: false` to run the app entirely on-device. Everything works;
 // nothing leaves the phone until you turn this on. Fill in the config from
 // Firebase console > Project settings > Your apps > Web app.
+// These values are identifiers, not secrets - they are safe in a public repo.
+// All access control lives in firestore.rules / storage.rules.
 export const FIREBASE = {
-  enabled: false,
+  enabled: true,
   config: {
-    apiKey: '',
-    authDomain: '',
-    projectId: '',
-    storageBucket: '',
-    messagingSenderId: '',
-    appId: '',
+    apiKey: 'AIzaSyDk7FyDu2CY-L-QpkYZTuit3TuuAS1v1YI',
+    authDomain: 'peatprobe-bfe85.firebaseapp.com',
+    projectId: 'peatprobe-bfe85',
+    storageBucket: 'peatprobe-bfe85.firebasestorage.app',
+    messagingSenderId: '673291971922',
+    appId: '1:673291971922:web:1d5e974a99db04698c9e8b',
   },
 };
