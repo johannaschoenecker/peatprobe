@@ -173,9 +173,9 @@ async function downloadFire(feature) {
     MapView.setPackStates(packStateMap());
     toast(
       pack.failed
-        ? `Pack ready, but ${pack.failed} tiles failed. Re-download on a better connection.`
+        ? `${pack.name}: ${pack.failed} of ${pack.tileCount} tiles missing. Tap Update on this fire to fetch just those.`
         : `${pack.name} ready for offline use (${fmtBytes(pack.bytes)}).`,
-      5000
+      6000
     );
     if (Sync.isEnabled() && navigator.onLine) {
       try { await Sync.pullForFires([id]); await refreshPoints(); } catch {}

@@ -85,6 +85,35 @@ export function estimatePack(feature) {
   };
 }
 
+/**
+ * Fetch one tile with up to two retries. A single wifi blip previously turned
+ * straight into a "failed" tile; transient network errors, 429s and 5xxs now
+ * get a second and third chance with a short backoff.
+ */
+async function fetchTileWithRetry(url, set, signal) {
+  const delays = [0, 600, 1800];
+  let lastErr;
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (signal && signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+    if (delays[attempt]) await new Promise(r => setTimeout(r, delays[attempt]));
+    try {
+      const res = await fetch(url, { signal, cache: 'force-cache' });
+      if (res.ok) return res.blob();
+      // No coverage on an optional overlay (sea, outside CORINE) is normal.
+      if (set.optional && (res.status === 404 || res.status === 204)) return null;
+      // Client errors other than rate limiting will not improve on retry.
+      if (res.status !== 429 && res.status < 500) throw new Error(`HTTP ${res.status}`);
+      lastErr = new Error(`HTTP ${res.status}`);
+      const ra = Number(res.headers.get('Retry-After'));
+      if (ra > 0 && ra <= 30) await new Promise(r => setTimeout(r, ra * 1000));
+    } catch (err) {
+      if (err.name === 'AbortError') throw err;
+      lastErr = err; // network error: worth retrying
+    }
+  }
+  throw lastErr || new Error('tile fetch failed');
+}
+
 /** Simple bounded-concurrency worker pool. */
 async function pool(items, limit, worker) {
   let i = 0;
@@ -123,14 +152,8 @@ export async function downloadPack(feature, onProgress, signal) {
       // Tiles are immutable enough that re-downloading a shared one is waste.
       // No done++ here: the finally block owns the counter.
       if (await DB.hasTile(key)) return;
-      const res = await fetch(expand(set.url, z, x, y), { signal, cache: 'force-cache' });
-      if (!res.ok) {
-        // An overlay with no coverage here (sea, or outside the CORINE
-        // footprint) is normal and must not be counted as a failure.
-        if (set.optional && (res.status === 404 || res.status === 204)) return;
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const blob = await res.blob();
+      const blob = await fetchTileWithRetry(expand(set.url, z, x, y), set, signal);
+      if (blob === null) return; // optional overlay with no coverage here
       await DB.putTile(key, fireId, blob);
       bytes += blob.size;
     } catch (err) {
@@ -219,6 +242,10 @@ export async function removePack(fireId) {
 export function packState(pack) {
   if (!pack) return 'none';
   if (pack.version !== APP.packVersion || pack.basemap !== BASEMAPS.active) return 'stale';
+  // A pack with missing tiles must stay updatable: 'ready' disables the
+  // download button everywhere, which would leave the gaps permanent. The
+  // update pass skips tiles already stored, so it only fetches what failed.
+  if (pack.failed > 0) return 'stale';
   return 'ready';
 }
 
