@@ -24,7 +24,7 @@ const OfflineTileLayer = L.TileLayer.extend({
     tile.onload = () => done(null, tile);
     tile.onerror = () => done(null, tile); // a missing tile is not an error worth surfacing
 
-    DB.getTile(tileKey(coords.z, coords.x, coords.y)).then((blob) => {
+    DB.getTile(tileKey(coords.z, coords.x, coords.y, this.options.layerId)).then((blob) => {
       if (blob) {
         tile._ppUrl = URL.createObjectURL(blob);
         tile.src = tile._ppUrl;
@@ -39,11 +39,15 @@ const OfflineTileLayer = L.TileLayer.extend({
   },
 });
 
-function offlineTiles(cfg) {
+function offlineTiles(cfg, layerId) {
   const layer = new OfflineTileLayer(cfg.url, {
+    layerId,
     attribution: cfg.attribution,
     maxZoom: cfg.maxZoom,
-    maxNativeZoom: cfg.maxZoom,
+    // maxNativeZoom lets Leaflet upscale rather than blank out past the
+    // source's real resolution - essential for 100 m CORINE at z16.
+    maxNativeZoom: cfg.maxNativeZoom || cfg.maxZoom,
+    opacity: cfg.opacity != null ? cfg.opacity : 1,
   });
   layer.on('tileunload', (e) => {
     if (e.tile._ppUrl) { URL.revokeObjectURL(e.tile._ppUrl); e.tile._ppUrl = null; }
@@ -71,8 +75,8 @@ export async function initMap(opts) {
   L.control.zoom({ position: 'topleft' }).addTo(map);
   L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
-  const base = offlineTiles(BASEMAPS[BASEMAPS.active]).addTo(map);
-  const sat = offlineTiles(SATELLITE);
+  const base = offlineTiles(BASEMAPS[BASEMAPS.active], 'base').addTo(map);
+  const sat = offlineTiles(SATELLITE, 'sat');
 
   firePolys = L.geoJSON(null, {
     style: styleFor,
@@ -94,8 +98,12 @@ export async function initMap(opts) {
   };
   if (LAYERS.corineAvailable) {
     overlays['Land cover (CORINE)'] = offlineTiles({
-      url: LAYERS.corineTiles, attribution: 'CORINE Land Cover, Copernicus', maxZoom: 14,
-    });
+      url: LAYERS.corineTiles,
+      attribution: '&copy; European Union, Copernicus Land Monitoring Service / EEA',
+      maxZoom: BASEMAPS[BASEMAPS.active].maxZoom,
+      maxNativeZoom: LAYERS.corineMaxZoom,
+      opacity: 0.6,   // it is context, not the thing you navigate by
+    }, 'corine');
   }
   L.control.layers(
     { [BASEMAPS[BASEMAPS.active].label]: base, [SATELLITE.label]: sat },

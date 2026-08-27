@@ -45,7 +45,11 @@ export function tilesForBbox(bbox, minZoom, maxZoom) {
   return out;
 }
 
-export const tileKey = (z, x, y) => `${z}/${x}/${y}`;
+/**
+ * Cache key for one tile. The layer id is part of the key: without it a CORINE
+ * tile and a basemap tile at the same z/x/y overwrite each other.
+ */
+export const tileKey = (z, x, y, layer = 'base') => `${layer}/${z}/${x}/${y}`;
 
 /** Great-circle distance in metres. */
 export function haversine(lat1, lon1, lat2, lon2) {

@@ -4,7 +4,8 @@
 export const APP = {
   name: 'PeatProbe',
   // Bump when the pack format changes so downloaded packs are flagged stale.
-  packVersion: 1,
+  // v2: tile cache keys are namespaced by layer, and packs may carry CORINE.
+  packVersion: 2,
 };
 
 // ---------------------------------------------------------------------------
@@ -93,11 +94,18 @@ export const QUALITY = {
 // ---------------------------------------------------------------------------
 export const LAYERS = {
   fireIndex: 'data/fires-index.geojson',
-  // CORINE land cover. Not shipped - see tools/README-corine.md for how to
-  // generate this from the Copernicus download. The app degrades gracefully
-  // when the file is absent.
+
+  // CORINE Land Cover 2018, exported from Earth Engine and tiled locally:
+  //   1. tools/gee_corine.js       -> GeoTIFF to Drive
+  //   2. tools/build_corine_tiles.sh -> data/corine/{z}/{x}/{y}.png
+  // Flip corineAvailable once the tiles exist. Until then the app simply
+  // omits the layer rather than showing a broken one.
   corineTiles: 'data/corine/{z}/{x}/{y}.png',
   corineAvailable: false,
+  // Must match MAX_Z in tools/build_corine_tiles.sh. At z11 a pixel is ~44 m,
+  // already finer than the 100 m source; Leaflet upscales beyond this rather
+  // than requesting tiles that were never generated.
+  corineMaxZoom: 11,
 };
 
 // ---------------------------------------------------------------------------

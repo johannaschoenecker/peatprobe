@@ -1,0 +1,65 @@
+# CORINE Land Cover official EEA palette, for gdaldem color-relief.
+# Format: <class code> <R> <G> <B> <A>
+#
+# Used with -nearest_color_entry so codes map to exact colours instead of
+# being interpolated between them (this is categorical data, not a DEM).
+#
+# Sea and nodata are transparent: the basemap already draws the sea, and a
+# solid blue overlay would hide it.
+
+nv    0   0   0     0
+0     0   0   0     0
+
+# ── artificial surfaces ──
+111 230   0  77   255
+112 255   0   0   255
+121 204  77 242   255
+122 204   0   0   255
+123 230 204 204   255
+124 230 204 230   255
+131 166   0 204   255
+132 166  77   0   255
+133 255  77 255   255
+141 255 166 255   255
+142 255 230 255   255
+
+# ── agricultural areas ──
+211 255 255 168   255
+212 255 255   0   255
+213 230 230   0   255
+221 230 128   0   255
+222 242 166  77   255
+223 230 166   0   255
+231 230 230  77   255
+241 255 230 166   255
+242 255 230  77   255
+243 230 204  77   255
+244 242 204 166   255
+
+# ── forest and semi-natural ──
+311 128 255   0   255
+312   0 166   0   255
+313  77 255   0   255
+321 204 242  77   255
+322 166 255 128   255
+323 166 230  77   255
+324 166 242   0   255
+331 230 230 230   255
+332 204 204 204   255
+333 204 255 204   255
+334   0   0   0   255
+335  51 255 255   255
+
+# ── wetlands: 412 peat bogs is the class this project revolves around ──
+411 166 166 255   255
+412  77  77 255   255
+421 204 204 255   255
+422 230 230 255   255
+423 166 166 230   255
+
+# ── water ──
+511   0 204 242   255
+512 128 242 230   255
+521   0 255 166   255
+522 166 255 230   255
+523 230 242 255     0

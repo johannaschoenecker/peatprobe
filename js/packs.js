@@ -5,7 +5,7 @@
 // packs, so deleting one pack never strands another.
 
 import * as DB from './db.js';
-import { PACK, BASEMAPS, APP } from './config.js';
+import { PACK, BASEMAPS, LAYERS, APP } from './config.js';
 import { tilesForBbox, bufferBbox, geometryBbox, tileKey, bboxAreaKm2 } from './geo.js';
 
 // Measured over Dava Moor, the Peak District and the Flow Country using
@@ -13,29 +13,61 @@ import { tilesForBbox, bufferBbox, geometryBbox, tileKey, bboxAreaKm2 } from './
 // estimate shown to a volunteer errs on the pessimistic side.
 const BYTES_PER_TILE_GUESS = 19 * 1024;
 
-function baseUrl() {
-  return BASEMAPS[BASEMAPS.active].url;
-}
+// Categorical PNGs with a handful of flat colours; nothing like a topo tile.
+const CORINE_BYTES_GUESS = 2.5 * 1024;
 
-function tileUrl(z, x, y) {
-  return baseUrl()
-    .replace('{z}', z).replace('{x}', x).replace('{y}', y)
-    .replace('{s}', 'a');
+const expand = (tpl, z, x, y) =>
+  tpl.replace('{z}', z).replace('{x}', x).replace('{y}', y).replace('{s}', 'a');
+
+/**
+ * Which tile sets a pack contains. CORINE is only included when its tiles have
+ * actually been generated, and only up to its own native zoom - it is 100 m
+ * data, so tiling past z12 just stores blurrier copies of the same pixels.
+ * Leaflet upscales the rest.
+ */
+function tileSets() {
+  const sets = [{
+    id: 'base',
+    url: BASEMAPS[BASEMAPS.active].url,
+    minZoom: PACK.minZoom,
+    maxZoom: PACK.maxZoom,
+  }];
+  if (LAYERS.corineAvailable) {
+    sets.push({
+      id: 'corine',
+      url: LAYERS.corineTiles,
+      minZoom: PACK.minZoom,
+      maxZoom: Math.min(PACK.maxZoom, LAYERS.corineMaxZoom),
+      optional: true,   // a missing CORINE tile must not fail the pack
+    });
+  }
+  return sets;
 }
 
 /** What would downloading this fire cost? Call before committing. */
 export function estimatePack(feature) {
   const raw = geometryBbox(feature.geometry);
   const bbox = bufferBbox(raw, PACK.bufferKm);
-  const tiles = tilesForBbox(bbox, PACK.minZoom, PACK.maxZoom);
+
+  const jobs = [];
+  for (const set of tileSets()) {
+    for (const t of tilesForBbox(bbox, set.minZoom, set.maxZoom)) {
+      jobs.push({ ...t, set });
+    }
+  }
+  // CORINE tiles are flat categorical PNGs and compress far harder than a
+  // topo basemap, so they should not be costed at the basemap rate.
+  const estBytes = jobs.reduce(
+    (a, j) => a + (j.set.id === 'base' ? BYTES_PER_TILE_GUESS : CORINE_BYTES_GUESS), 0);
+
   return {
     bbox,
-    tiles,
-    count: tiles.length,
-    estBytes: tiles.length * BYTES_PER_TILE_GUESS,
+    tiles: jobs,
+    count: jobs.length,
+    estBytes,
     areaKm2: bboxAreaKm2(bbox),
-    tooBig: tiles.length > PACK.maxTiles,
-    shouldWarn: tiles.length > PACK.warnTiles,
+    tooBig: jobs.length > PACK.maxTiles,
+    shouldWarn: jobs.length > PACK.warnTiles,
   };
 }
 
@@ -70,21 +102,26 @@ export async function downloadPack(feature, onProgress, signal) {
   const report = () => onProgress && onProgress({ done, total: est.count, failed, bytes });
   report();
 
-  await pool(est.tiles, PACK.concurrency, async ({ z, x, y }) => {
+  await pool(est.tiles, PACK.concurrency, async ({ z, x, y, set }) => {
     if (signal && signal.aborted) return;
-    const key = tileKey(z, x, y);
+    const key = tileKey(z, x, y, set.id);
     try {
       // Tiles are immutable enough that re-downloading a shared one is waste.
       // No done++ here: the finally block owns the counter.
       if (await DB.hasTile(key)) return;
-      const res = await fetch(tileUrl(z, x, y), { signal, cache: 'force-cache' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await fetch(expand(set.url, z, x, y), { signal, cache: 'force-cache' });
+      if (!res.ok) {
+        // An overlay with no coverage here (sea, or outside the CORINE
+        // footprint) is normal and must not be counted as a failure.
+        if (set.optional && (res.status === 404 || res.status === 204)) return;
+        throw new Error(`HTTP ${res.status}`);
+      }
       const blob = await res.blob();
       await DB.putTile(key, fireId, blob);
       bytes += blob.size;
     } catch (err) {
       if (err.name === 'AbortError') throw err;
-      failed++;
+      if (!set.optional) failed++;
     } finally {
       done++;
       if (done % 5 === 0 || done === est.count) report();
@@ -123,8 +160,10 @@ export async function removePack(fireId) {
   const keep = new Set();
   for (const p of packs) {
     if (p.fireId === fireId) continue;
-    for (const t of tilesForBbox(p.bbox, PACK.minZoom, PACK.maxZoom)) {
-      keep.add(tileKey(t.z, t.x, t.y));
+    for (const set of tileSets()) {
+      for (const t of tilesForBbox(p.bbox, set.minZoom, set.maxZoom)) {
+        keep.add(tileKey(t.z, t.x, t.y, set.id));
+      }
     }
   }
   await DB.deleteTilesForFire(fireId, keep);
