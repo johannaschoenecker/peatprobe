@@ -5,6 +5,7 @@ import * as DB from './db.js';
 import { BASEMAPS, SATELLITE, LAYERS, PACK } from './config.js';
 import { tileKey, pointInGeometry, haversine } from './geo.js';
 import { fireName, fireSubtitle, dnbrIndex, dnbrKey } from './packs.js';
+import * as Grid from './grid.js';
 
 const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
 const UK_CENTRE = [54.6, -3.4];
@@ -19,6 +20,9 @@ let dnbrGroup;                 // burn severity image overlays
 let dnbrOverlays = new Map();  // fireId -> L.ImageOverlay
 let dnbrMeta;                  // data/dnbr/index.json, or null
 let corineLayer;               // kept so the legend can tell if it is showing
+let gridGroup;                 // sampling-grid overlay
+let gridLayers = new Map();    // fireId -> layerGroup of node markers
+let lastGps = null;            // for distance/bearing in grid popups
 let handlers = {};
 let placingMode = false;
 
@@ -123,10 +127,12 @@ export async function initMap(opts) {
   }).addTo(map);
 
   dnbrGroup = L.layerGroup();
+  gridGroup = L.layerGroup().addTo(map);  // on by default: it is the fieldwork
 
   const overlays = {
     'Fire perimeters': firePolys,
     'Measurements': pointsLayer,
+    'Sampling grid (100 m)': gridGroup,
     'Burn severity (dNBR)': dnbrGroup,
   };
   if (LAYERS.corineAvailable) {
@@ -146,8 +152,10 @@ export async function initMap(opts) {
 
   map.on('zoomend', syncDotVisibility);
   map.on('moveend zoomend', syncDnbrOverlays);
+  map.on('moveend zoomend', syncGridOverlays);
   map.on('overlayadd overlayremove', (e) => {
     if (e.layer === dnbrGroup) syncDnbrOverlays();
+    if (e.layer === gridGroup) syncGridOverlays();
     legend.refresh();
   });
   map.on('click', (e) => {
@@ -346,6 +354,102 @@ areaFilterCtl.refresh = function () {
     b.classList.toggle('is-on', Number(b.dataset.v) === minAreaHa));
 };
 
+// ── sampling grid overlay ─────────────────────────────────────────────────
+// Rendered lazily per fire in view, like the severity overlays. Below
+// GRID_MIN_ZOOM the nodes are only a few pixels apart and would read as
+// noise, so nothing is drawn - the layer switch stays on, the dots appear as
+// you zoom into a fire.
+const GRID_MIN_ZOOM = 13;
+const GRID_MAX_FIRES = 4;
+
+const gridNodeStyle = {
+  radius: 3.5, color: '#FFFFFF', weight: 1.5,
+  fillColor: '#2C221A', fillOpacity: 0.95,
+};
+
+function dropGridLayer(id) {
+  const lg = gridLayers.get(id);
+  if (lg) gridGroup.removeLayer(lg);
+  gridLayers.delete(id);
+}
+
+async function syncGridOverlays() {
+  if (!gridGroup || !map.hasLayer(gridGroup) || !fireIndex) return;
+  if (map.getZoom() < GRID_MIN_ZOOM) {
+    for (const id of [...gridLayers.keys()]) dropGridLayer(id);
+    return;
+  }
+
+  const view = map.getBounds();
+  const keep = view.pad(0.5);
+  for (const [id, lg] of [...gridLayers]) {
+    if (lg && !keep.intersects(lg._ppBounds)) dropGridLayer(id);
+  }
+
+  const candidates = fireIndex.features.filter((f) => {
+    const [w, s, e, n] = f._bbox || (f._bbox = geometryBboxOf(f));
+    return view.intersects(L.latLngBounds([s, w], [n, e]));
+  }).slice(0, GRID_MAX_FIRES);
+
+  for (const f of candidates) {
+    const id = f.properties.id;
+    if (gridLayers.has(id)) continue;
+    // Reserve the slot BEFORE awaiting: moveend and zoomend fire together,
+    // and two concurrent runs both passing the has() check would render every
+    // node twice.
+    gridLayers.set(id, null);
+    const g = await Grid.loadGrid(id);
+    if (!g || !g.points) { gridLayers.delete(id); continue; }
+    const lg = L.layerGroup();
+    for (const [e, n, lat, lon] of g.points) {
+      L.circleMarker([lat, lon], gridNodeStyle)
+        .on('click', () => openGridPopup(e, n, lat, lon, f))
+        .addTo(lg);
+    }
+    const [w, s, e2, n2] = f._bbox;
+    lg._ppBounds = L.latLngBounds([s, w], [n2, e2]);
+    gridLayers.set(id, lg);
+    gridGroup.addLayer(lg);
+  }
+}
+
+function geometryBboxOf(f) {
+  let w = 180, s = 90, e = -180, n = -90;
+  const visit = (c) => {
+    if (typeof c[0] === 'number') {
+      if (c[0] < w) w = c[0]; if (c[0] > e) e = c[0];
+      if (c[1] < s) s = c[1]; if (c[1] > n) n = c[1];
+    } else c.forEach(visit);
+  };
+  visit(f.geometry.coordinates);
+  return [w, s, e, n];
+}
+
+function openGridPopup(e, n, lat, lon, feature) {
+  const id = Grid.nodeId(e, n);
+  let nav = '';
+  if (lastGps) {
+    const t = Grid.towards(lastGps.lat, lastGps.lon, lat, lon);
+    nav = t.distM < 5
+      ? '<div class="muted small">You are here (±5 m)</div>'
+      : `<div class="muted small">${t.distM < 1000
+            ? `${Math.round(t.distM)} m`
+            : `${(t.distM / 1000).toFixed(1)} km`} ${t.compass} of you (${t.bearingDeg}°)</div>`;
+  }
+  L.popup({ maxWidth: 240 })
+    .setLatLng([lat, lon])
+    .setContent(`
+      <div class="fire-popup">
+        <h3>${id}</h3>
+        <div class="muted small">${escapeHtml(fireName(feature.properties))}</div>
+        <div class="muted small">${lat.toFixed(5)}, ${lon.toFixed(5)}</div>
+        ${nav}
+        <div class="muted small">Sample within a few metres of this node and
+        it will be recorded against it automatically.</div>
+      </div>`)
+    .openOn(map);
+}
+
 // ── legend ────────────────────────────────────────────────────────────────
 // CORINE has 44 classes, which is unreadable on a phone. These are the ones
 // that matter for peat fire work; everything else falls under "other".
@@ -509,6 +613,7 @@ export function renderPoints(points, photoUrls) {
 
 // ── GPS ───────────────────────────────────────────────────────────────────
 export function showGps(lat, lon, accuracy) {
+  lastGps = { lat, lon };
   if (!gpsMarker) {
     gpsMarker = L.circleMarker([lat, lon], {
       radius: 7, color: '#fff', weight: 3, fillColor: '#1D6FE0', fillOpacity: 1,

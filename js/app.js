@@ -8,9 +8,14 @@ import { QUALITY, PACK, FIREBASE, BASEMAPS } from './config.js';
 import { fmtBytes, fmtDistance } from './geo.js';
 import { INFO_HTML } from './info.js';
 import * as Chart from './chart.js';
+import * as Grid from './grid.js';
 
 // Ordered from least to most consumed; the value is what gets stored, the
 // label is what the surveyor sees and what lands in the CSV.
+// A measurement adopts the nearest sampling node when it is taken within
+// this distance of it (half the 100 m spacing, with a little GPS slack).
+const GRID_ATTACH_M = 60;
+
 const COMBUSTION = {
   unburned: 'Unburned',
   light: 'Lightly burned',
@@ -426,6 +431,22 @@ function renderDraftLocation() {
   $('#loc-fire').textContent = fire
     ? `Inside: ${Packs.fireName(fire.properties)}`
     : 'Not inside a mapped fire perimeter — that is fine, it will be recorded as unassigned.';
+
+  // Nearest sampling node, so the surveyor sees which grid point this
+  // measurement will belong to before saving.
+  const gridEl = $('#loc-grid');
+  gridEl.textContent = '';
+  state.draft.grid = null;
+  if (fire) {
+    const seq = (state.draftSeq = (state.draftSeq || 0) + 1);
+    Grid.nearestNode(fire.properties.id, d.lat, d.lon).then((node) => {
+      if (seq !== state.draftSeq || !node) return;   // a newer GPS fix won
+      state.draft.grid = node;
+      gridEl.textContent = node.distM <= GRID_ATTACH_M
+        ? `Grid point ${node.id} · ${Math.round(node.distM)} m away`
+        : `Nearest grid point ${node.id} is ${Math.round(node.distM)} m away — too far to attach.`;
+    }).catch(() => {});
+  }
 }
 
 function wireForm() {
@@ -533,6 +554,9 @@ async function savePoint() {
     depths,
     depthMean: vals.reduce((a, b) => a + b, 0) / vals.length,
     combustion,
+    gridId: (state.draft.grid && state.draft.grid.distM <= GRID_ATTACH_M) ? state.draft.grid.id : null,
+    gridDistM: (state.draft.grid && state.draft.grid.distM <= GRID_ATTACH_M)
+      ? Math.round(state.draft.grid.distM) : null,
     comment: $('#comment-input').value.trim(),
     surveyor,
     hasPhoto: true,
@@ -589,6 +613,7 @@ function renderPointList() {
         <div class="muted small">${esc(p.fireName || 'Unassigned')} · ${new Date(p.createdAt).toLocaleDateString('en-GB')}</div>
         <div class="muted small">${p.depths.filter(d => d != null).length} reading(s)${p.accuracyM != null ? ` · ±${Math.round(p.accuracyM)} m` : ''}</div>
         ${p.combustion ? `<div class="muted small">${esc(COMBUSTION[p.combustion] || p.combustion)}</div>` : ''}
+        ${p.gridId ? `<div class="muted small">Grid ${esc(p.gridId)}</div>` : ''}
       </div>
       <span class="badge badge--${p.status === 'pending' ? 'pending' : 'ready'}">${p.status === 'pending' ? 'Unsynced' : 'Synced'}</span>
     `;
@@ -652,7 +677,7 @@ function exportCsv() {
   if (!state.points.length) { toast('Nothing to export yet.'); return; }
   const cols = ['uuid', 'created_iso', 'surveyor', 'fire_id', 'fire_name', 'lat', 'lon',
     'gps_accuracy_m', 'manual_placement', 'depth_1', 'depth_2', 'depth_3', 'depth_4', 'depth_5',
-    'depth_mean_cm', 'depth_n', 'combustion', 'comment', 'photo_url', 'status'];
+    'depth_mean_cm', 'depth_n', 'combustion', 'grid_id', 'grid_dist_m', 'comment', 'photo_url', 'status'];
   const q = (v) => {
     if (v == null) return '';
     const s = String(v);
@@ -666,6 +691,7 @@ function exportCsv() {
     p.depthMean != null ? p.depthMean.toFixed(2) : '',
     p.depths.filter(d => d != null).length,
     p.combustion || '',
+    p.gridId || '', p.gridDistM != null ? p.gridDistM : '',
     p.comment, p.photoUrl, p.status,
   ].map(q).join(','));
 

@@ -130,6 +130,15 @@ mean. Layers are toggled from the control at the top right.</p>
   the comparison this project needs.</li>
 </ul>
 
+<h3>The sampling grid</h3>
+<p>Zoom into any fire and you will see a lattice of dots 100&nbsp;m apart,
+aligned to the Ordnance Survey grid. These are the sampling points: pick one,
+tap it to see its ID and the distance and direction from where you stand, walk
+there, and take your measurement <strong>within about 50&nbsp;m</strong> of it —
+it then records against that grid point automatically. Spreading measurements
+across grid points, rather than clustering where access is easy, is what makes
+the dataset statistically usable.</p>
+
 <h3>Credits</h3>
 <p>Fire perimeters from the <strong>European Forest Fire Information System (EFFIS)</strong>,
 Copernicus Emergency Management Service. Land cover from <strong>CORINE Land Cover

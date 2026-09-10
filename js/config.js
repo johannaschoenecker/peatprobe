@@ -6,7 +6,8 @@ export const APP = {
   // Bump when the pack format changes so downloaded packs are flagged stale.
   // v2: tile cache keys namespaced by layer; packs may carry CORINE.
   // v3: packs carry the dNBR overlay and the land cover x severity stats.
-  packVersion: 3,
+  // v4: packs carry the 100 m sampling grid.
+  packVersion: 4,
 };
 
 // ---------------------------------------------------------------------------

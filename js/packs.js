@@ -194,6 +194,19 @@ export async function downloadPack(feature, onProgress, signal) {
     }
   } catch { /* severity is optional context; never fail a pack over it */ }
 
+  // 100 m sampling grid, so volunteers can navigate to nodes offline.
+  let grid = null;
+  try {
+    const r = await fetch(`data/grid/${encodeURIComponent(fireId)}.json`);
+    if (r.ok) {
+      const blob = await r.blob();
+      const { gridKey } = await import('./grid.js');
+      await DB.putTile(gridKey(fireId), fireId, blob);
+      bytes += blob.size;
+      grid = { count: JSON.parse(await blob.text()).points.length };
+    }
+  } catch { /* grid is optional; never fail a pack over it */ }
+
   // Land cover x severity cross-tab, so the fire's charts work in the field.
   let stats = null;
   try {
@@ -215,6 +228,7 @@ export async function downloadPack(feature, onProgress, signal) {
     bytes,
     dnbr,
     stats,
+    grid,
     version: APP.packVersion,
     basemap: BASEMAPS.active,
     downloadedAt: Date.now(),
