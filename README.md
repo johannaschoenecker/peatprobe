@@ -181,15 +181,18 @@ well dNBR predicts peat consumption.
 
 ## Field pack sizing (measured, not guessed)
 
-Against the real EFFIS 25/26 layer, zoom 10–16 with a 2 km buffer, using
-MapTiler topo-v4 **webp**:
+Against the real EFFIS 25/26 layer, zoom 10–15 with a 2 km buffer, using
+MapTiler topo-v4 **webp** (z16 was dropped in Sep 2026 after it blew the
+MapTiler free tier — the deepest zoom level alone was ~3/4 of every pack):
 
 | | Tiles | Size |
 | --- | --- | --- |
-| Smallest fire | 174 | ~3 MB |
-| Median fire (16 ha) | 259 | ~4.8 MB |
-| 90th percentile (57 ha) | 354 | ~6.6 MB |
-| Largest (West Moray, 9,809 ha) | 8,066 | ~150 MB |
+| Median fire (16 ha) | 84 | ~1.6 MB |
+| 90th percentile (57 ha) | 114 | ~2 MB |
+| Largest (West Moray, 9,809 ha) | 2,098 | ~39 MB |
+
+Downloading **every** fire once now costs ~148k tile requests — so a normal
+month of volunteer use (tens of packs) sits in the low thousands.
 
 Only one fire in the whole dataset exceeds 4,000 tiles, and it sits behind a
 confirmation prompt.

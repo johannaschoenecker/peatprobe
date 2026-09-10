@@ -69,12 +69,16 @@ export const SATELLITE = {
 // ---------------------------------------------------------------------------
 export const PACK = {
   minZoom: 10,        // shared, coarse context tiles
-  maxZoom: 16,        // detail you can actually navigate by on foot
+  // z15 rather than z16: each zoom level quadruples the tile count, so the
+  // deepest level alone was ~3/4 of every pack. Dropping it cuts tile spend
+  // (and pack size) roughly 4x, at ~4 m/px ground detail instead of ~2 m/px -
+  // still comfortably navigable on foot, and the sampling-grid nodes carry
+  // the precise positions anyway. This is what blew the MapTiler free tier
+  // in Sep 2026.
+  maxZoom: 15,
   bufferKm: 2,        // people park outside the perimeter and walk in
-  // Real EFFIS 25/26 distribution: median fire ~260 tiles (~5 MB), 90th
-  // percentile ~355. Only the largest (West Moray, 9,809 ha) approaches the
-  // cap at ~8,100 tiles / ~140 MB - big, but it is exactly the kind of fire
-  // this project exists for, so it stays downloadable behind a confirmation.
+  // Post-cut distribution: median fire ~68 tiles (~1.3 MB), largest
+  // (West Moray) ~2,100 tiles (~37 MB).
   maxTiles: 10000,    // refuse to start a download bigger than this
   warnTiles: 1200,    // ask for confirmation above this
   concurrency: 4,     // parallel tile fetches
