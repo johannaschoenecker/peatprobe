@@ -141,6 +141,17 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--ember);outline-o
 .tab span{font-size:20px;line-height:1}
 .tab.is-active{color:var(--ember)}
 
+/* AR overlay (Android WebXR): hint + exit over the camera view */
+.ar-overlay{position:fixed;inset:0;z-index:20000;pointer-events:none;
+  display:flex;flex-direction:column;justify-content:space-between;align-items:center;
+  padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(26px + var(--safe-b))}
+.ar-overlay__hint{pointer-events:none;background:rgba(31,23,18,.82);color:#F6F1E8;
+  border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600;max-width:340px;
+  text-align:center;margin:0}
+.ar-overlay__close{pointer-events:auto;border:0;border-radius:999px;background:var(--ember);
+  color:#fff;font:700 16px/1 inherit;padding:14px 34px;min-height:var(--tap);cursor:pointer;
+  box-shadow:0 3px 14px rgba(0,0,0,.4)}
+
 /* toast */
 .toast{position:fixed;left:50%;bottom:calc(76px + var(--safe-b));transform:translateX(-50%);z-index:9999;
   background:var(--peat-900);color:#fff;padding:12px 18px;border-radius:10px;font-size:14px;font-weight:600;

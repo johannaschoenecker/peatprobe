@@ -60,6 +60,13 @@ later. A good photo shows:</p>
 <p>Photos are shrunk on your phone before upload, so they will not eat your data
 allowance.</p>
 
+<h3>The AR quadrat (bonus)</h3>
+<p>On newer phones the record form offers <strong>📐 Project 1 m quadrat</strong>:
+the camera opens and a true-scale 1 × 1 m square with 10 cm ticks is laid on the
+ground — handy for judging cover without carrying a frame. It is accurate to a
+few centimetres at best, needs daylight and a textured surface, and a physical
+quadrat is still the reference where the protocol demands exactness.</p>
+
 <h3>Staying safe</h3>
 <div class="callout callout--danger">
   <p><strong>Burned peatland can stay dangerous long after a fire looks out.</strong>

@@ -9,6 +9,7 @@ import { fmtBytes, fmtDistance } from './geo.js';
 import { INFO_HTML } from './info.js';
 import * as Chart from './chart.js';
 import * as Grid from './grid.js';
+import * as AR from './ar.js';
 
 // Ordered from least to most consumed; the value is what gets stored, the
 // label is what the surveyor sees and what lands in the CSV.
@@ -98,6 +99,9 @@ async function boot() {
 
   const surveyor = await DB.getMeta('surveyor');
   if (surveyor) $('#surveyor-input').value = surveyor;
+
+  // AR quadrat is a bonus: the button exists only on phones that can do it.
+  AR.detect().then((m) => { if (m) $('#ar-field').hidden = false; }).catch(() => {});
 }
 
 // ══════════════════════════════════════════════════════════ tabs
@@ -455,6 +459,19 @@ function wireForm() {
   $('#form-cancel').addEventListener('click', () => dlg.close());
   $('#form-save').addEventListener('click', savePoint);
   $('#btn-pick-on-map').addEventListener('click', () => { dlg.close(); beginManualPlacement(); });
+
+  $('#btn-ar').addEventListener('click', async () => {
+    const m = await AR.detect();
+    try {
+      if (m === 'quicklook') { AR.quickLookOpen(); return; }
+      if (m === 'webxr') {
+        $('#point-dialog').close();                 // the camera needs the screen
+        await AR.webxrStart(() => $('#point-dialog').showModal());
+      }
+    } catch {
+      toast('Could not start the camera view on this phone.', 4000);
+    }
+  });
 
   $$('[data-depth]').forEach(i => i.addEventListener('input', updateMean));
 
