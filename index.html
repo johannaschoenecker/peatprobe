@@ -101,7 +101,12 @@
         <div class="muted small" id="loc-acc"></div>
         <div class="muted small" id="loc-fire"></div>
         <div class="muted small" id="loc-grid"></div>
-        <button type="button" id="btn-pick-on-map" class="btn btn--sm">Place manually on map</button>
+        <div class="row" style="margin:10px 0 0">
+          <button type="button" id="btn-pick-on-map" class="btn btn--sm">Place manually on map</button>
+          <span id="ar-field" hidden>
+            <button type="button" id="btn-ar" class="btn btn--sm">📐 1 m quadrat (AR)</button>
+          </span>
+        </div>
       </div>
 
       <fieldset class="depths">
@@ -128,12 +133,6 @@
         </select>
         <span class="muted small">How much of the above-ground vegetation was consumed.</span>
       </label>
-
-      <div class="field" id="ar-field" hidden>
-        <button type="button" id="btn-ar" class="btn btn--sm">📐 Project 1 m quadrat (AR)</button>
-        <span class="muted small">Places a true-scale square on the ground through the
-        camera — a rough aid, ±a few cm. Use a physical quadrat where exactness matters.</span>
-      </div>
 
       <label class="field">
         <span>Photo <span class="req">required</span></span>
