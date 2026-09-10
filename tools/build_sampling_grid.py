@@ -14,9 +14,14 @@ point-in-polygon loop. A fire too small to catch any cell centre gets its
 PointOnSurface as a single fallback node, so every burn scar has at least one
 sampling point.
 
+Each node also carries its dNBR burn-severity class (0 regrowth .. 5 high,
+-1 where no severity raster exists), sampled from data/source/dnbr - so the
+app can colour the grid by severity with no raster work on the phone.
+
 Input:  data/fires/<id>.geojson         (detail perimeters, EPSG:4326)
-Output: data/grid/<id>.json             {spacing, points: [[e, n, lat, lon], ...]}
-        (id of a point = "<e>-<n>", derived, not stored)
+        data/source/dnbr/dnbr_<id>.tif  (optional, Int16 dNBR x1000, EPSG:3857)
+Output: data/grid/<id>.json             {spacing, points: [[e, n, lat, lon, sev], ...]}
+        (id of a point = "E<e> N<n>", derived, not stored)
 
 Run with QGIS's interpreter:
   PYTHONHOME='/c/Program Files/QGIS 3.32.3/apps/Python39' \
@@ -41,16 +46,52 @@ osr.UseExceptions()
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 FIRES_DIR = os.path.join(ROOT, 'data', 'fires')
+DNBR_DIR = os.path.join(ROOT, 'data', 'source', 'dnbr')
+
+# dNBR x1000 upper bounds -> severity slot; matches build_dnbr_overlays.py.
+SEV_BOUNDS = [(-100, 0), (100, 1), (270, 2), (440, 3), (660, 4), (10 ** 9, 5)]
 OUT_DIR = os.path.join(ROOT, 'data', 'grid')
 
 SPACING = 100  # metres, on the OSGB lattice
 
 wgs = osr.SpatialReference(); wgs.ImportFromEPSG(4326)
 bng = osr.SpatialReference(); bng.ImportFromEPSG(27700)
-for s in (wgs, bng):
+merc = osr.SpatialReference(); merc.ImportFromEPSG(3857)
+for s in (wgs, bng, merc):
     s.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
 TO_BNG = osr.CoordinateTransformation(wgs, bng)
 TO_WGS = osr.CoordinateTransformation(bng, wgs)
+TO_MERC = osr.CoordinateTransformation(wgs, merc)
+
+
+class SeveritySampler:
+    """Classify nodes against a fire's dNBR raster; -1 when there is none.
+
+    Nodes are inside the perimeter by construction, so GEE's uncut zeros
+    outside the perimeter are never sampled and no cutline is needed."""
+
+    def __init__(self, fid):
+        path = os.path.join(DNBR_DIR, f'dnbr_{fid}.tif')
+        self.arr = None
+        if os.path.exists(path):
+            ds = gdal.Open(path)
+            self.arr = ds.GetRasterBand(1).ReadAsArray()
+            self.gt = ds.GetGeoTransform()
+            self.w, self.h = ds.RasterXSize, ds.RasterYSize
+
+    def classify(self, lat, lon):
+        if self.arr is None:
+            return -1
+        x, y, _ = TO_MERC.TransformPoint(lon, lat)
+        col = int((x - self.gt[0]) / self.gt[1])
+        row = int((y - self.gt[3]) / self.gt[5])
+        if not (0 <= col < self.w and 0 <= row < self.h):
+            return -1
+        v = float(self.arr[row, col])
+        for upper, slot in SEV_BOUNDS:
+            if v < upper:
+                return slot
+        return -1
 
 
 def grid_for(geom_bng):
@@ -110,10 +151,12 @@ def main():
             nodes = [(int(round(p.GetX())), int(round(p.GetY())))]
             fallbacks += 1
 
+        sampler = SeveritySampler(fid)
         pts = []
         for e, n in nodes:
             lon, lat, _ = TO_WGS.TransformPoint(float(e), float(n))
-            pts.append([e, n, round(lat, 6), round(lon, 6)])
+            pts.append([e, n, round(lat, 6), round(lon, 6),
+                        sampler.classify(lat, lon)])
 
         with open(os.path.join(OUT_DIR, f'{fid}.json'), 'w', encoding='utf-8') as fh:
             json.dump({'spacing': SPACING, 'crs': 'EPSG:27700', 'points': pts},

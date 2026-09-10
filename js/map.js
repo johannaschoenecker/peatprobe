@@ -153,6 +153,7 @@ export async function initMap(opts) {
   map.on('zoomend', syncDotVisibility);
   map.on('moveend zoomend', syncDnbrOverlays);
   map.on('moveend zoomend', syncGridOverlays);
+  map.on('zoomend', () => legend.refresh());
   map.on('overlayadd overlayremove', (e) => {
     if (e.layer === dnbrGroup) syncDnbrOverlays();
     if (e.layer === gridGroup) syncGridOverlays();
@@ -362,10 +363,16 @@ areaFilterCtl.refresh = function () {
 const GRID_MIN_ZOOM = 13;
 const GRID_MAX_FIRES = 4;
 
-const gridNodeStyle = {
+// Node fill = the node's dNBR severity class, same colours as the severity
+// overlay and the legend. The white ring keeps even the pale classes legible
+// on the topo basemap. Fires without severity keep the neutral dark fill.
+const GRID_SEV_COLORS = ['#91CF60', '#D9D9D9', '#FEE08B', '#FC8D59', '#E34A33', '#7F0000'];
+const GRID_SEV_LABELS = ['Regrowth', 'No change', 'Low', 'Moderate-low', 'Moderate-high', 'High'];
+
+const gridNodeStyle = (sev) => ({
   radius: 3.5, color: '#FFFFFF', weight: 1.5,
-  fillColor: '#2C221A', fillOpacity: 0.95,
-};
+  fillColor: GRID_SEV_COLORS[sev] || '#2C221A', fillOpacity: 0.95,
+});
 
 function dropGridLayer(id) {
   const lg = gridLayers.get(id);
@@ -401,9 +408,9 @@ async function syncGridOverlays() {
     const g = await Grid.loadGrid(id);
     if (!g || !g.points) { gridLayers.delete(id); continue; }
     const lg = L.layerGroup();
-    for (const [e, n, lat, lon] of g.points) {
-      L.circleMarker([lat, lon], gridNodeStyle)
-        .on('click', () => openGridPopup(e, n, lat, lon, f))
+    for (const [e, n, lat, lon, sev] of g.points) {
+      L.circleMarker([lat, lon], gridNodeStyle(sev))
+        .on('click', () => openGridPopup(e, n, lat, lon, f, sev))
         .addTo(lg);
     }
     const [w, s, e2, n2] = f._bbox;
@@ -425,8 +432,11 @@ function geometryBboxOf(f) {
   return [w, s, e, n];
 }
 
-function openGridPopup(e, n, lat, lon, feature) {
+function openGridPopup(e, n, lat, lon, feature, sev) {
   const id = Grid.nodeId(e, n);
+  const sevLine = GRID_SEV_LABELS[sev]
+    ? `<div class="muted small">Burn severity here: <strong>${GRID_SEV_LABELS[sev]}</strong> (satellite estimate)</div>`
+    : '';
   let nav = '';
   if (lastGps) {
     const t = Grid.towards(lastGps.lat, lastGps.lon, lat, lon);
@@ -443,6 +453,7 @@ function openGridPopup(e, n, lat, lon, feature) {
         <h3>${id}</h3>
         <div class="muted small">${escapeHtml(fireName(feature.properties))}</div>
         <div class="muted small">${lat.toFixed(5)}, ${lon.toFixed(5)}</div>
+        ${sevLine}
         ${nav}
         <div class="muted small">Sample within a few metres of this node and
         it will be recorded against it automatically.</div>
@@ -493,7 +504,10 @@ legend.refresh = function () {
   if (!el) return;
   const active = [];
   if (corineLayer && map.hasLayer(corineLayer)) active.push('corine');
-  if (dnbrGroup && map.hasLayer(dnbrGroup)) active.push('dnbr');
+  if ((dnbrGroup && map.hasLayer(dnbrGroup)) ||
+      (gridGroup && map.hasLayer(gridGroup) && map.getZoom() >= GRID_MIN_ZOOM)) {
+    active.push('dnbr');   // grid nodes wear the same severity colours
+  }
 
   if (!active.length) { el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
