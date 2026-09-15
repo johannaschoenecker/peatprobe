@@ -199,9 +199,21 @@ export async function pushPending(onProgress) {
           if (!blob) continue;
           const name = count > 1 || p.photoCount != null ? `${p.uuid}-${k}.jpg` : `${p.uuid}.jpg`;
           const ref = stMod.ref(storage, `photos/${p.fireId || 'unassigned'}/${name}`);
-          await stMod.uploadBytes(ref, blob, { contentType: 'image/jpeg' });
+          try {
+            await stMod.uploadBytes(ref, blob, { contentType: 'image/jpeg' });
+          } catch (upErr) {
+            // Storage is write-once: a retry after a partly-failed sync hits
+            // its own earlier upload and gets refused. If the object already
+            // exists, that IS success - take its URL and move on.
+            try { photoUrls.push(await stMod.getDownloadURL(ref)); continue; }
+            catch { throw upErr; }
+          }
           photoUrls.push(await stMod.getDownloadURL(ref));
         }
+        // Remember finished uploads immediately, so a later failure in the
+        // document write never causes a photo re-upload.
+        p.photoUrls = photoUrls;
+        await DB.putPoint(p);
       }
       const photoUrl = photoUrls[0] || p.photoUrl || null;
 

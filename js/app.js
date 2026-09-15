@@ -590,6 +590,13 @@ async function savePoint() {
   if (!combustion) return showErr(err, 'Choose how completely the vegetation burned.');
   if (!state.photos.length) return showErr(err, 'At least one photo is required. It is how we check readings later.');
   if (!state.draft) return showErr(err, 'No location set.');
+  // Mirror the server rules' UK bounding box here, so a mis-tapped test point
+  // fails NOW with a real explanation instead of a cryptic permission error
+  // at sync time.
+  if (!(state.draft.lat > 49 && state.draft.lat < 61 &&
+        state.draft.lon > -9 && state.draft.lon < 2.5)) {
+    return showErr(err, 'This location is outside the UK, and the database only accepts UK points. Place the point inside the UK.');
+  }
 
   const uuid = crypto.randomUUID();
   const surveyor = $('#surveyor-input').value.trim();
@@ -711,7 +718,18 @@ function renderPointList() {
         ${(p.photoCount || 0) > 1 ? `<div class="muted small">${p.photoCount} photos</div>` : ''}
       </div>
       <span class="badge badge--${p.status === 'pending' ? 'pending' : 'ready'}">${p.status === 'pending' ? 'Unsynced' : 'Synced'}</span>
+      ${p.status === 'pending' ? '<button class="icon-btn" data-del aria-label="Delete this unsynced measurement">🗑</button>' : ''}
     `;
+    const del = li.querySelector('[data-del]');
+    if (del) del.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('Delete this unsynced measurement and its photos? This cannot be undone.')) return;
+      for (let k = 0; k < (p.photoCount || 1); k++) await DB.deletePhoto(`${p.uuid}:${k}`).catch(() => {});
+      await DB.deletePhoto(p.uuid).catch(() => {});
+      await DB.deletePoint(p.uuid);
+      await refreshPoints(); updateSyncPill();
+      toast('Deleted.');
+    });
     li.addEventListener('click', () => { showTab('map'); MapView.flyTo(p.lat, p.lon, 17); });
     ul.append(li);
   }
