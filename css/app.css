@@ -276,3 +276,20 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--ember);outline-o
   .map-overlay{gap:8px;right:10px}
   .leaflet-control-attribution{max-width:44%}
 }
+
+/* ── walk-to-node navigation overlay ─────────────────────────────────────── */
+.nav-overlay{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;
+  justify-content:center;background:var(--peat-900);color:#F6F1E8;
+  padding:24px 16px calc(24px + var(--safe-b))}
+.nav-overlay[hidden]{display:none}
+.nav-card{text-align:center;max-width:340px;width:100%}
+.nav-label{font-size:15px;font-weight:700;letter-spacing:.4px;margin:0 0 8px;
+  color:var(--ember-lt)}
+.nav-arrow{display:inline-block;color:var(--ember);
+  transition:transform .25s ease-out;will-change:transform}
+.nav--arrived .nav-arrow{color:var(--ok)}
+.nav-dist{font-size:44px;font-weight:800;margin:10px 0 2px;font-variant-numeric:tabular-nums}
+.nav-sub{margin:0;color:#CBBFA9;font-size:15px}
+.nav-hint{margin:10px 0 0;color:#9C8875;font-size:13px;min-height:2.6em}
+.nav-stop{margin-top:20px;background:rgba(255,255,255,.12);color:#F6F1E8;border:0}
+body.nav-open{overflow:hidden}

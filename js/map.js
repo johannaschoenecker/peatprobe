@@ -6,6 +6,7 @@ import { BASEMAPS, SATELLITE, LAYERS, PACK } from './config.js';
 import { tileKey, pointInGeometry, haversine } from './geo.js';
 import { fireName, fireSubtitle, dnbrIndex, dnbrKey } from './packs.js';
 import * as Grid from './grid.js';
+import * as Nav from './nav.js';
 
 const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
 const UK_CENTRE = [54.6, -3.4];
@@ -481,19 +482,24 @@ function openGridPopup(e, n, lat, lon, feature, sev) {
             ? `${Math.round(t.distM)} m`
             : `${(t.distM / 1000).toFixed(1)} km`} ${t.compass} of you (${t.bearingDeg}°)</div>`;
   }
-  L.popup({ maxWidth: 240 })
-    .setLatLng([lat, lon])
-    .setContent(`
-      <div class="fire-popup">
-        <h3>${id}</h3>
-        <div class="muted small">${escapeHtml(fireName(feature.properties))}</div>
-        <div class="muted small">${lat.toFixed(5)}, ${lon.toFixed(5)}</div>
-        ${sevLine}
-        ${nav}
-        <div class="muted small">Sample within a few metres of this node and
-        it will be recorded against it automatically.</div>
-      </div>`)
-    .openOn(map);
+  // A DOM node rather than an HTML string, so the Navigate button can carry a
+  // real click handler (and iOS compass permission needs that user gesture).
+  const content = document.createElement('div');
+  content.className = 'fire-popup';
+  content.innerHTML = `
+      <h3>${id}</h3>
+      <div class="muted small">${escapeHtml(fireName(feature.properties))}</div>
+      <div class="muted small">${lat.toFixed(5)}, ${lon.toFixed(5)}</div>
+      ${sevLine}
+      ${nav}
+      <div class="muted small">Sample within a few metres of this node and
+      it will be recorded against it automatically.</div>
+      <button type="button" class="btn btn--sm btn--primary popup-navigate">Navigate here</button>`;
+  content.querySelector('.popup-navigate').addEventListener('click', () => {
+    map.closePopup();
+    Nav.start({ lat, lon, label: id }, lastGps);
+  });
+  L.popup({ maxWidth: 240 }).setLatLng([lat, lon]).setContent(content).openOn(map);
 }
 
 // ── legend ────────────────────────────────────────────────────────────────
@@ -705,7 +711,7 @@ export function renderPoints(points, photoUrls) {
 
 // ── GPS ───────────────────────────────────────────────────────────────────
 export function showGps(lat, lon, accuracy) {
-  lastGps = { lat, lon };
+  lastGps = { lat, lon, accuracy };
   if (!gpsMarker) {
     gpsMarker = L.circleMarker([lat, lon], {
       radius: 7, color: '#fff', weight: 3, fillColor: '#1D6FE0', fillOpacity: 1,

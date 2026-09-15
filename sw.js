@@ -4,7 +4,7 @@
 // they live in IndexedDB via the field-pack system, which gives us per-fire
 // download, progress, and deletion that a cache-everything worker cannot.
 
-const VERSION = 'peatprobe-v24';
+const VERSION = 'peatprobe-v25';
 
 const SHELL = [
   './',
@@ -37,6 +37,7 @@ const SHELL = [
   'js/ar.js',
   'js/review.js',
   'js/grid.js',
+  'js/nav.js',
   'vendor/three/three.module.min.js',
   'assets/quadrat.usdz',
 ];
