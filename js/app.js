@@ -452,11 +452,14 @@ function renderDraftLocation() {
     acc.className = poor ? 'small accuracy-warn' : 'muted small';
   }
 
-  const fire = MapView.findFireAt(d.lat, d.lon);
+  const hit = MapView.findFireNear(d.lat, d.lon, 100);
+  const fire = hit && hit.feature;
   state.draft.fire = fire;
-  $('#loc-fire').textContent = fire
-    ? `Inside: ${Packs.fireName(fire.properties)}`
-    : 'Not inside a mapped fire perimeter — that is fine, it will be recorded as unassigned.';
+  $('#loc-fire').textContent = !fire
+    ? 'Not near a mapped fire perimeter — that is fine, it will be recorded as unassigned.'
+    : hit.distM === 0
+      ? `Inside: ${Packs.fireName(fire.properties)}`
+      : `${Math.round(hit.distM)} m outside ${Packs.fireName(fire.properties)} — still counted as that fire.`;
 
   // Nearest sampling node, so the surveyor sees which grid point this
   // measurement will belong to before saving.
@@ -663,9 +666,15 @@ function renderCampaigns() {
   const ul = $('#campaign-list');
   const groups = new Map();
   for (const p of state.points) {
-    const key = p.fireId || 'unassigned';
+    let fireId = p.fireId, fireName = p.fireName;
+    if (!fireId) {
+      // Older points saved without the buffer: re-attach for display only.
+      const near = MapView.findFireNear(p.lat, p.lon, 100);
+      if (near) { fireId = near.feature.properties.id; fireName = Packs.fireName(near.feature.properties); }
+    }
+    const key = fireId || 'unassigned';
     let g = groups.get(key);
-    if (!g) groups.set(key, g = { fireId: p.fireId, name: p.fireName || 'Outside mapped fires',
+    if (!g) groups.set(key, g = { fireId, name: fireName || 'Outside mapped fires',
       n: 0, latest: 0, earliest: Infinity, who: new Set(), lat: p.lat, lon: p.lon });
     g.n++; g.latest = Math.max(g.latest, p.createdAt || 0);
     g.earliest = Math.min(g.earliest, p.createdAt || Infinity);

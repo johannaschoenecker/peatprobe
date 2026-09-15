@@ -614,6 +614,49 @@ export function setPackStates(states) {
 
 export function getFireIndex() { return fireIndex; }
 
+/** Metres from a point to the nearest edge of a Polygon/MultiPolygon. */
+function distToGeometryM(lat, lon, geom, mLat, mLon) {
+  let best = Infinity;
+  const px = lon * mLon, py = lat * mLat;
+  const walkRing = (ring) => {
+    for (let i = 1; i < ring.length; i++) {
+      const ax = ring[i - 1][0] * mLon, ay = ring[i - 1][1] * mLat;
+      const bx = ring[i][0] * mLon,     by = ring[i][1] * mLat;
+      const dx = bx - ax, dy = by - ay;
+      const L2 = dx * dx + dy * dy;
+      const t = L2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L2)) : 0;
+      const qx = ax + t * dx, qy = ay + t * dy;
+      const d = Math.hypot(px - qx, py - qy);
+      if (d < best) best = d;
+    }
+  };
+  const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+  for (const rings of polys) for (const ring of rings) walkRing(ring);
+  return best;
+}
+
+/**
+ * The fire this point belongs to, allowing a buffer around each perimeter.
+ * The buffer absorbs GPS error, the index's ~40 m simplification tolerance,
+ * and sampling right at the fire's edge - all of which otherwise strand a
+ * measurement as "outside mapped fires".
+ */
+export function findFireNear(lat, lon, maxM = 100) {
+  const exact = findFireAt(lat, lon);
+  if (exact) return { feature: exact, distM: 0 };
+  if (!fireIndex) return null;
+  const mLat = 111320, mLon = 111320 * Math.cos((lat * Math.PI) / 180);
+  const padLat = (maxM * 1.5) / mLat, padLon = (maxM * 1.5) / mLon;
+  let best = null, bestD = Infinity;
+  for (const f of fireIndex.features) {
+    const [w, s, e, n] = f._bbox || (f._bbox = geometryBboxOf(f));
+    if (lat < s - padLat || lat > n + padLat || lon < w - padLon || lon > e + padLon) continue;
+    const d = distToGeometryM(lat, lon, f.geometry, mLat, mLon);
+    if (d < bestD) { bestD = d; best = f; }
+  }
+  return best && bestD <= maxM ? { feature: best, distM: bestD } : null;
+}
+
 export function findFireAt(lat, lon) {
   if (!fireIndex) return null;
   return fireIndex.features.find(f => pointInGeometry(lon, lat, f.geometry)) || null;
