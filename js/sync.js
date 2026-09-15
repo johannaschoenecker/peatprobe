@@ -87,6 +87,47 @@ export async function onUserChanged(cb) {
   return authMod.onAuthStateChanged(auth, cb);
 }
 
+// ── admin / review ────────────────────────────────────────────────────────
+// The UI hides the Review tab from non-admins, but that is convenience only:
+// the Firestore rules are what actually refuse status changes from anyone
+// whose UID is not a document in the admins collection.
+
+export async function isAdminUser() {
+  const user = await currentUser();
+  if (!user) return false;
+  try {
+    const { db, fsMod } = await init();
+    const snap = await fsMod.getDoc(fsMod.doc(db, 'admins', user.uid));
+    return snap.exists();
+  } catch {
+    return false;
+  }
+}
+
+/** Oldest-first queue of measurements awaiting review. */
+export async function fetchPending(max = 50) {
+  const { db, fsMod } = await init();
+  const q = fsMod.query(
+    fsMod.collection(db, 'measurements'),
+    fsMod.where('status', '==', 'pending_review'),
+    fsMod.limit(max)
+  );
+  const snap = await fsMod.getDocs(q);
+  return snap.docs.map(d => d.data())
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+}
+
+export async function setStatus(uuid, status) {
+  const user = await currentUser();
+  if (!user) throw new Error('Sign in first');
+  const { db, fsMod } = await init();
+  await fsMod.updateDoc(fsMod.doc(db, 'measurements', uuid), {
+    status,
+    reviewedAt: Date.now(),
+    reviewedBy: user.uid,
+  });
+}
+
 // ── push ──────────────────────────────────────────────────────────────────
 /**
  * Upload every pending point. Photos go to Cloud Storage first so the document

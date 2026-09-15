@@ -10,6 +10,7 @@ import { INFO_HTML } from './info.js';
 import * as Chart from './chart.js';
 import * as Grid from './grid.js';
 import * as AR from './ar.js';
+import * as Review from './review.js';
 
 // Ordered from least to most consumed; the value is what gets stored, the
 // label is what the surveyor sees and what lands in the CSV.
@@ -100,6 +101,13 @@ async function boot() {
   const surveyor = await DB.getMeta('surveyor');
   if (surveyor) $('#surveyor-input').value = surveyor;
 
+  // The Review tab exists only for admins - checked once the auth state is
+  // known. The Firestore rules are the real gate; this is just the door.
+  if (Sync.isEnabled() && navigator.onLine) {
+    Sync.isAdminUser().then((ok) => { if (ok) $('#tab-review').hidden = false; })
+      .catch(() => {});
+  }
+
   // AR quadrat is a bonus: the button exists only on phones that can do it.
   AR.detect().then((m) => { if (m) $('#ar-field').hidden = false; }).catch(() => {});
 }
@@ -114,6 +122,7 @@ function wireTabs() {
       if (v === 'map') setTimeout(() => MapView.getMap().invalidateSize(), 60);
       if (v === 'fires') { renderFireList(); updateStorageDisplay(); }
       if (v === 'data') renderPointList();
+      if (v === 'review') openReviewQueue();
     });
   });
 }
@@ -337,6 +346,7 @@ function wireButtons() {
   $('#btn-export').addEventListener('click', exportCsv);
   $('#btn-sync').addEventListener('click', doSync);
   $('#sync-pill').addEventListener('click', () => showTab('data'));
+  $('#btn-review-reload').addEventListener('click', openReviewQueue);
 }
 
 // ══════════════════════════════════════════════════════════ fire detail
@@ -639,6 +649,20 @@ function renderPointList() {
   }
 }
 
+// ══════════════════════════════════════════════════════════ review (admin)
+async function openReviewQueue() {
+  const host = $('#review-list');
+  try {
+    await Review.open(host, {
+      onShowOnMap: (r) => { showTab('map'); MapView.flyTo(r.lat, r.lon, 16); },
+      onDecided: (r, status) => toast(status === 'verified' ? 'Approved.' : 'Rejected.', 1500),
+    });
+  } catch (e) {
+    host.innerHTML = `<p class="form-error">Could not load the queue: ${esc(e.message)}.
+      Sign in via My data → Sync now first.</p>`;
+  }
+}
+
 // ══════════════════════════════════════════════════════════ sync + export
 function updateSyncPill() {
   const n = state.points.filter(p => p.status === 'pending').length;
@@ -667,7 +691,8 @@ async function doSync(opts = {}) {
   const original = btn.textContent;
   try {
     let user = await Sync.currentUser();
-    if (!user) { btn.textContent = 'Signing in…'; user = await Sync.signIn(); }
+    if (!user) { btn.textContent = 'Signing in…'; user = await Sync.signIn();
+      Sync.isAdminUser().then((ok) => { if (ok) $('#tab-review').hidden = false; }).catch(() => {}); }
 
     btn.textContent = 'Uploading…';
     const { pushed, failed } = await Sync.pushPending(({ done, total }) => {

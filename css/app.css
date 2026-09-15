@@ -109,6 +109,18 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--ember);outline-o
 .point-card__main{flex:1;min-width:0}
 .point-card__depth{font-size:19px;font-weight:700}
 
+/* review queue (admins) */
+.review-card{display:grid;grid-template-columns:118px 1fr;gap:12px;background:var(--card);
+  border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-top:10px;
+  transition:opacity .3s, transform .3s}
+.review-card.is-approved{opacity:0;transform:translateX(30px)}
+.review-card.is-rejected{opacity:0;transform:translateX(-30px)}
+.review-card__photo img{width:118px;height:118px;object-fit:cover;border-radius:8px;display:block}
+.review-card__nophoto{width:118px;height:118px;border-radius:8px;background:var(--line);
+  color:var(--muted);font-size:11px;display:flex;align-items:center;text-align:center;padding:8px}
+.review-card__body{min-width:0}
+.review-card__actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+
 /* record sheet */
 .sheet{border:0;padding:0;width:min(560px,100%);max-height:92dvh;border-radius:16px 16px 0 0;
   margin:auto auto 0;background:var(--paper);color:var(--ink)}

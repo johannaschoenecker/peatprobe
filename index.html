@@ -74,6 +74,15 @@
     </div>
   </section>
 
+  <!-- ══════════ REVIEW (admins only) ══════════ -->
+  <section id="view-review" class="view">
+    <div class="pane">
+      <h2>Review queue</h2>
+      <div id="review-list"></div>
+      <button id="btn-review-reload" class="btn btn--sm" style="margin-top:14px">Reload queue</button>
+    </div>
+  </section>
+
   <!-- ══════════ INFO ══════════ -->
   <section id="view-info" class="view">
     <div class="pane prose" id="info-pane"></div>
@@ -84,6 +93,7 @@
   <button class="tab is-active" data-view="map"><span>🗺️</span>Map</button>
   <button class="tab" data-view="fires"><span>⬇️</span>Packs</button>
   <button class="tab" data-view="data"><span>📋</span>My data</button>
+  <button class="tab" data-view="review" id="tab-review" hidden><span>✅</span>Review</button>
   <button class="tab" data-view="info"><span>ℹ️</span>Info</button>
 </nav>
 
