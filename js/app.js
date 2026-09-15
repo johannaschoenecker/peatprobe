@@ -106,6 +106,7 @@ async function boot() {
     Sync.completeRedirect().then((u) => {
       if (u) {
         toast(`Signed in${u.email ? ' as ' + u.email : ''}. Syncing…`, 3500);
+        renderAuthLine();
         doSync({ quiet: true });
       }
     }).catch(() => {});
@@ -116,6 +117,7 @@ async function boot() {
   if (Sync.isEnabled() && navigator.onLine) {
     Sync.isAdminUser().then((ok) => { if (ok) $('#tab-review').hidden = false; })
       .catch(() => {});
+    renderAuthLine();
   }
 
   // AR quadrat is a bonus: the button exists only on phones that can do it.
@@ -677,6 +679,26 @@ function renderPointList() {
   }
 }
 
+/** "Signed in as …" + sign-out, so a borrowed phone can switch accounts. */
+async function renderAuthLine() {
+  const el = $('#auth-line');
+  if (!Sync.isEnabled()) { el.hidden = true; return; }
+  let user = null;
+  try { user = await Sync.currentUser(); } catch {}
+  if (!user) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `Signed in as <strong>${esc(user.email || user.uid)}</strong> ·
+    <button type="button" id="btn-signout" class="btn btn--sm" style="min-height:30px">Sign out</button>`;
+  $('#btn-signout').addEventListener('click', async () => {
+    try {
+      await Sync.signOut();
+      $('#tab-review').hidden = true;
+      renderAuthLine();
+      toast('Signed out. The next Sync now will ask who is signing in.', 4500);
+    } catch (e) { toast(`Sign-out failed: ${e.message}`, 4000); }
+  });
+}
+
 // ══════════════════════════════════════════════════════════ review (admin)
 async function openReviewQueue() {
   const host = $('#review-list');
@@ -741,10 +763,11 @@ async function doSync(opts = {}) {
         return;
       }
       Sync.isAdminUser().then((ok) => { if (ok) $('#tab-review').hidden = false; }).catch(() => {});
+      renderAuthLine();
     }
 
     btn.textContent = 'Uploading…';
-    const { pushed, failed } = await Sync.pushPending(({ done, total }) => {
+    const { pushed, failed, firstError } = await Sync.pushPending(({ done, total }) => {
       btn.textContent = `Uploading ${done}/${total}…`;
     });
 
@@ -753,8 +776,10 @@ async function doSync(opts = {}) {
 
     await refreshPoints();
     updateSyncPill();
-    if (!opts.quiet || pushed) {
-      toast(failed ? `Uploaded ${pushed}, ${failed} failed — will retry.` : `Synced ${pushed} measurement(s).`);
+    if (!opts.quiet || pushed || failed) {
+      toast(failed
+        ? `Uploaded ${pushed}, ${failed} failed: ${firstError || 'unknown error'}`
+        : `Synced ${pushed} measurement(s).`, failed ? 9000 : 3200);
     }
   } catch (e) {
     if (!opts.quiet) toast(`Sync failed: ${e.message}`, 5000);

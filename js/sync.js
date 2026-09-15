@@ -180,7 +180,7 @@ export async function pushPending(onProgress) {
 
   const { db, storage, fsMod, stMod } = await init();
   const pending = await DB.pendingPoints();
-  let pushed = 0, failed = 0;
+  let pushed = 0, failed = 0, firstError = null;
 
   for (let i = 0; i < pending.length; i++) {
     const p = pending[i];
@@ -243,11 +243,12 @@ export async function pushPending(onProgress) {
       pushed++;
     } catch (err) {
       console.warn('sync failed for', p.uuid, err);
+      if (!firstError) firstError = `${err.code || ''} ${err.message || err}`.trim().slice(0, 140);
       failed++;
     }
   }
   onProgress && onProgress({ done: pending.length, total: pending.length });
-  return { pushed, failed };
+  return { pushed, failed, firstError };
 }
 
 // ── pull ──────────────────────────────────────────────────────────────────
