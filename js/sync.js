@@ -106,6 +106,11 @@ export async function isAdminUser() {
 
 /** Oldest-first queue of measurements awaiting review. */
 export async function fetchPending(max = 50) {
+  const user = await currentUser();
+  if (!user) throw new Error('Not signed in - use My data → Sync now, then reopen Review');
+  // Force-refresh the ID token: a stale token is the classic cause of a
+  // permission denial moments after another read succeeded.
+  await user.getIdToken(true).catch(() => {});
   const { db, fsMod } = await init();
   const q = fsMod.query(
     fsMod.collection(db, 'measurements'),
@@ -120,6 +125,7 @@ export async function fetchPending(max = 50) {
 export async function setStatus(uuid, status) {
   const user = await currentUser();
   if (!user) throw new Error('Sign in first');
+  await user.getIdToken(true).catch(() => {});
   const { db, fsMod } = await init();
   await fsMod.updateDoc(fsMod.doc(db, 'measurements', uuid), {
     status,

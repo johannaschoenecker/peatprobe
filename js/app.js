@@ -658,8 +658,16 @@ async function openReviewQueue() {
       onDecided: (r, status) => toast(status === 'verified' ? 'Approved.' : 'Rejected.', 1500),
     });
   } catch (e) {
-    host.innerHTML = `<p class="form-error">Could not load the queue: ${esc(e.message)}.
-      Sign in via My data → Sync now first.</p>`;
+    // Diagnostic-rich failure: say WHO the request ran as, so a rules problem
+    // and a session problem stop looking identical.
+    let who = 'unknown';
+    try { const u = await Sync.currentUser(); who = u ? (u.email || u.uid) : 'not signed in'; }
+    catch {}
+    host.innerHTML = `<p class="form-error">Could not load the queue: ${esc(e.message)}
+      <br><span class="small">Signed in as: ${esc(who)} · ${esc(e.code || '')}</span></p>
+      <p class="muted small">If you are signed in and this persists, the deployed
+      Firestore rules likely differ from the repo copy — re-paste
+      firestore.rules in the console (Regeln → Veröffentlichen) and retry.</p>`;
   }
 }
 
