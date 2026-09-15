@@ -116,6 +116,8 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--ember);outline-o
 .review-card.is-approved{opacity:0;transform:translateX(30px)}
 .review-card.is-rejected{opacity:0;transform:translateX(-30px)}
 .review-card__photo img{width:118px;height:118px;object-fit:cover;border-radius:8px;display:block}
+.review-card__photo .more{display:flex;gap:4px;margin-top:4px}
+.review-card__photo .more img{width:36px;height:36px;border-radius:6px}
 .review-card__nophoto{width:118px;height:118px;border-radius:8px;background:var(--line);
   color:var(--muted);font-size:11px;display:flex;align-items:center;text-align:center;padding:8px}
 .review-card__body{min-width:0}
@@ -140,8 +142,11 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--ember);outline-o
 .depth-grid label{display:flex;flex-direction:column;align-items:center;font-size:12px;font-weight:700;color:var(--muted);gap:4px}
 .depth-grid input{text-align:center;padding:10px 4px}
 .mean-box{font-size:15px;padding-top:6px;border-top:1px dashed var(--line)}
-.photo-preview{display:flex;gap:12px;align-items:center;margin:12px 0}
-.photo-preview img{width:88px;height:88px;object-fit:cover;border-radius:10px;border:1.5px solid var(--line)}
+.photo-previews{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.photo-previews .ph{position:relative}
+.photo-previews img{width:84px;height:84px;object-fit:cover;border-radius:10px;border:1.5px solid var(--line);display:block}
+.photo-previews .ph button{position:absolute;top:-8px;right:-8px;width:26px;height:26px;border-radius:50%;
+  border:0;background:var(--bad);color:#fff;font:700 13px/26px inherit;cursor:pointer;padding:0}
 .form-error{background:#FDE6DC;color:var(--bad);border-radius:10px;padding:10px 12px;font-size:14px;font-weight:600}
 .accuracy-warn{color:var(--ember);font-weight:700}
 

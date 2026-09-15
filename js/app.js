@@ -33,8 +33,7 @@ const state = {
   packs: new Map(),      // fireId -> pack
   gps: null,             // { lat, lon, accuracy, ts }
   draft: null,           // { lat, lon, accuracy, manual }
-  photoBlob: null,
-  photoUrl: null,
+  photos: [],              // [{blob, url}] - first is required, rest optional
   listFilter: { text: '', downloadedOnly: false, near: null },
   photoUrls: new Map(),
   downloading: new Set(),
@@ -496,27 +495,18 @@ function wireForm() {
 
   $$('[data-depth]').forEach(i => i.addEventListener('input', updateMean));
 
+  // Each selection APPENDS - one photo is required, more are welcome.
   $('#photo-input').addEventListener('change', async (e) => {
     const file = e.target.files && e.target.files[0];
+    e.target.value = '';                    // so the same camera shot twice still fires change
     if (!file) return;
     try {
       const blob = await resizePhoto(file);
-      state.photoBlob = blob;
-      if (state.photoUrl) URL.revokeObjectURL(state.photoUrl);
-      state.photoUrl = URL.createObjectURL(blob);
-      const pv = $('#photo-preview');
-      pv.querySelector('img').src = state.photoUrl;
-      pv.hidden = false;
+      state.photos.push({ blob, url: URL.createObjectURL(blob) });
+      renderPhotoPreviews();
     } catch {
       toast('Could not read that image. Try taking the photo again.', 5000);
     }
-  });
-
-  $('#photo-clear').addEventListener('click', () => {
-    state.photoBlob = null;
-    if (state.photoUrl) { URL.revokeObjectURL(state.photoUrl); state.photoUrl = null; }
-    $('#photo-input').value = '';
-    $('#photo-preview').hidden = true;
   });
 }
 
@@ -542,8 +532,30 @@ function resetForm() {
   $('#combustion-input').value = '';
   $('#comment-input').value = '';
   $('#form-error').hidden = true;
-  $('#photo-clear').click();
+  for (const p of state.photos) URL.revokeObjectURL(p.url);
+  state.photos = [];
+  $('#photo-input').value = '';
+  renderPhotoPreviews();
   updateMean();
+}
+
+function renderPhotoPreviews() {
+  const host = $('#photo-previews');
+  host.innerHTML = '';
+  state.photos.forEach((p, i) => {
+    const d = document.createElement('div');
+    d.className = 'ph';
+    d.innerHTML = `<img src="${p.url}" alt="Photo ${i + 1}"><button type="button" aria-label="Remove photo ${i + 1}">✕</button>`;
+    d.querySelector('button').addEventListener('click', () => {
+      URL.revokeObjectURL(p.url);
+      state.photos.splice(i, 1);
+      renderPhotoPreviews();
+    });
+    host.appendChild(d);
+  });
+  $('#photo-hint').textContent = state.photos.length
+    ? `${state.photos.length} photo(s) added — tap above to add another.`
+    : 'Include a ruler or a familiar object for scale. You can add several — tap again after the first.';
 }
 
 async function resizePhoto(file) {
@@ -574,7 +586,7 @@ async function savePoint() {
   // cannot be interpreted against how much fuel actually burned. Delete these
   // two lines to make it optional.
   if (!combustion) return showErr(err, 'Choose how completely the vegetation burned.');
-  if (!state.photoBlob) return showErr(err, 'A photo is required. It is how we check readings later.');
+  if (!state.photos.length) return showErr(err, 'At least one photo is required. It is how we check readings later.');
   if (!state.draft) return showErr(err, 'No location set.');
 
   const uuid = crypto.randomUUID();
@@ -598,12 +610,15 @@ async function savePoint() {
     comment: $('#comment-input').value.trim(),
     surveyor,
     hasPhoto: true,
+    photoCount: state.photos.length,
     photoUrl: null,
     status: 'pending',
     createdAt: Date.now(),
   };
 
-  await DB.putPhoto(uuid, state.photoBlob);
+  for (let i = 0; i < state.photos.length; i++) {
+    await DB.putPhoto(`${uuid}:${i}`, state.photos[i].blob);
+  }
   await DB.putPoint(point);
   if (surveyor) await DB.setMeta('surveyor', surveyor);
 
@@ -626,7 +641,8 @@ async function refreshPoints() {
   state.photoUrls.clear();
   for (const p of state.points) {
     if (p.remote && p.photoUrl) { state.photoUrls.set(p.uuid, p.photoUrl); continue; }
-    const blob = await DB.getPhoto(p.uuid);
+    const blob = (p.photoCount != null ? await DB.getPhoto(`${p.uuid}:0`) : null)
+              || await DB.getPhoto(p.uuid);
     if (blob) state.photoUrls.set(p.uuid, URL.createObjectURL(blob));
   }
   MapView.renderPoints(state.points, state.photoUrls);
@@ -652,6 +668,7 @@ function renderPointList() {
         <div class="muted small">${p.depths.filter(d => d != null).length} reading(s)${p.accuracyM != null ? ` · ±${Math.round(p.accuracyM)} m` : ''}</div>
         ${p.combustion ? `<div class="muted small">${esc(COMBUSTION[p.combustion] || p.combustion)}</div>` : ''}
         ${p.gridId ? `<div class="muted small">Grid ${esc(p.gridId)}</div>` : ''}
+        ${(p.photoCount || 0) > 1 ? `<div class="muted small">${p.photoCount} photos</div>` : ''}
       </div>
       <span class="badge badge--${p.status === 'pending' ? 'pending' : 'ready'}">${p.status === 'pending' ? 'Unsynced' : 'Synced'}</span>
     `;
@@ -711,6 +728,10 @@ async function doSync(opts = {}) {
   try {
     let user = await Sync.currentUser();
     if (!user) {
+      // A background sync must never rip the user out of the app into a
+      // sign-in flow. Only an explicit Sync-now tap may start one; until
+      // then the unsynced pill keeps count.
+      if (opts.quiet) { btn.disabled = false; btn.textContent = original; return; }
       btn.textContent = 'Signing in…';
       user = await Sync.signIn();
       if (!user) {
@@ -747,7 +768,7 @@ function exportCsv() {
   if (!state.points.length) { toast('Nothing to export yet.'); return; }
   const cols = ['uuid', 'created_iso', 'surveyor', 'fire_id', 'fire_name', 'lat', 'lon',
     'gps_accuracy_m', 'manual_placement', 'depth_1', 'depth_2', 'depth_3', 'depth_4', 'depth_5',
-    'depth_mean_cm', 'depth_n', 'combustion', 'grid_id', 'grid_dist_m', 'comment', 'photo_url', 'status'];
+    'depth_mean_cm', 'depth_n', 'combustion', 'grid_id', 'grid_dist_m', 'comment', 'photo_url', 'photo_count', 'status'];
   const q = (v) => {
     if (v == null) return '';
     const s = String(v);
@@ -762,7 +783,7 @@ function exportCsv() {
     p.depths.filter(d => d != null).length,
     p.combustion || '',
     p.gridId || '', p.gridDistM != null ? p.gridDistM : '',
-    p.comment, p.photoUrl, p.status,
+    p.comment, p.photoUrl, p.photoCount ?? (p.hasPhoto ? 1 : 0), p.status,
   ].map(q).join(','));
 
   const blob = new Blob(['\uFEFF' + cols.join(',') + '\n' + rows.join('\n')],

@@ -145,11 +145,12 @@
       </label>
 
       <label class="field">
-        <span>Photo <span class="req">required</span></span>
+        <span>Photos <span class="req">at least one</span></span>
         <input type="file" id="photo-input" accept="image/*" capture="environment">
-        <span class="muted small">Include a ruler or a familiar object for scale.</span>
+        <span class="muted small" id="photo-hint">Include a ruler or a familiar object for scale.
+        You can add several — tap again after the first.</span>
       </label>
-      <div id="photo-preview" class="photo-preview" hidden><img alt="Photo preview"><button type="button" id="photo-clear" class="btn btn--sm">Remove</button></div>
+      <div id="photo-previews" class="photo-previews"></div>
 
       <label class="field">
         <span>Notes</span>

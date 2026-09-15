@@ -36,6 +36,10 @@ export function renderQueue(host, records, { onDecide, onShowOnMap }) {
           ? `<a href="${esc(r.photoUrl)}" target="_blank" rel="noopener">
                <img src="${esc(r.photoUrl)}" alt="Submitted photo" loading="lazy"></a>`
           : '<div class="review-card__nophoto">photo still uploading from the phone</div>'}
+        ${(r.photoUrls || []).length > 1 ? `<div class="more">${
+            r.photoUrls.slice(1).map(u =>
+              `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="More" loading="lazy"></a>`
+            ).join('')}</div>` : ''}
       </div>
       <div class="review-card__body">
         <div class="point-card__depth">${r.depthMean != null ? r.depthMean.toFixed(1) : '?'} cm</div>

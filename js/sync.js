@@ -186,16 +186,24 @@ export async function pushPending(onProgress) {
     const p = pending[i];
     onProgress && onProgress({ done: i, total: pending.length });
     try {
-      let photoUrl = p.photoUrl || null;
-
-      if (!photoUrl && p.hasPhoto) {
-        const blob = await DB.getPhoto(p.uuid);
-        if (blob) {
-          const ref = stMod.ref(storage, `photos/${p.fireId || 'unassigned'}/${p.uuid}.jpg`);
+      // Upload every photo of the point that has not reached Storage yet.
+      // Filenames use '-' (not '_') so the storage.rules name pattern that is
+      // already deployed keeps matching without a rules re-publish.
+      const count = p.photoCount ?? (p.hasPhoto ? 1 : 0);
+      let photoUrls = Array.isArray(p.photoUrls) ? p.photoUrls.slice() : [];
+      if (photoUrls.length < count) {
+        photoUrls = [];
+        for (let k = 0; k < count; k++) {
+          const key = p.photoCount != null ? `${p.uuid}:${k}` : p.uuid;
+          const blob = await DB.getPhoto(key);
+          if (!blob) continue;
+          const name = count > 1 || p.photoCount != null ? `${p.uuid}-${k}.jpg` : `${p.uuid}.jpg`;
+          const ref = stMod.ref(storage, `photos/${p.fireId || 'unassigned'}/${name}`);
           await stMod.uploadBytes(ref, blob, { contentType: 'image/jpeg' });
-          photoUrl = await stMod.getDownloadURL(ref);
+          photoUrls.push(await stMod.getDownloadURL(ref));
         }
       }
+      const photoUrl = photoUrls[0] || p.photoUrl || null;
 
       const doc = {
         uuid: p.uuid,
@@ -212,6 +220,8 @@ export async function pushPending(onProgress) {
         comment: p.comment || '',
         surveyor: p.surveyor || '',
         photoUrl,
+        photoUrls,
+        photoCount: count,
         userId: user.uid,
         userEmail: user.email || null,
         status: 'pending_review',
@@ -226,6 +236,7 @@ export async function pushPending(onProgress) {
 
       p.status = 'synced';
       p.photoUrl = photoUrl;
+      p.photoUrls = photoUrls;
       p.photoPending = false;
       p.syncedAt = Date.now();
       await DB.putPoint(p);
@@ -266,7 +277,8 @@ export async function pullForFires(fireIds) {
         combustion: r.combustion || null,
         gridId: r.gridId || null, gridDistM: r.gridDistM ?? null,
         comment: r.comment, surveyor: r.surveyor,
-        photoUrl: r.photoUrl, hasPhoto: !!r.photoUrl,
+        photoUrl: r.photoUrl, photoUrls: r.photoUrls || [],
+        photoCount: r.photoCount ?? (r.photoUrl ? 1 : 0), hasPhoto: !!r.photoUrl,
         userId: r.userId,
         status: 'synced', remote: true,
         createdAt: r.createdAt, syncedAt: r.syncedAt,
