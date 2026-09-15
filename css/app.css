@@ -157,6 +157,10 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--ember);outline-o
   color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:var(--tap)}
 .tab span{font-size:20px;line-height:1}
 .tab.is-active{color:var(--ember)}
+/* .tab's display:flex silently overrides the UA's [hidden]{display:none} -
+   author styles beat user-agent styles - which made the admin-only Review
+   tab visible to every user. Attribute must win explicitly. */
+.tab[hidden]{display:none}
 
 /* AR overlay (Android WebXR): hint + exit over the camera view */
 .ar-overlay{position:fixed;inset:0;z-index:20000;pointer-events:none;
