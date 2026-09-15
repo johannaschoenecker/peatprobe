@@ -144,7 +144,7 @@ export async function initMap(opts) {
       opacity: 0.6,   // it is context, not the thing you navigate by
     }, 'corine');
   }
-  L.control.layers(
+  const layersCtl = L.control.layers(
     { [BASEMAPS[BASEMAPS.active].label]: base, [SATELLITE.label]: sat },
     overlays,
     { position: 'topright', collapsed: true }
@@ -167,7 +167,42 @@ export async function initMap(opts) {
   areaFilterCtl.addTo(map);
 
   await loadFireIndex();
+  loadAugustSamples(layersCtl);   // fire-and-forget: layer appears only if data exists
   return map;
+}
+
+// ── temporary "August samples" overlay ────────────────────────────────────
+// Shows where the team already sampled, for colleagues. Purely additive: the
+// file data/august-samples.geojson may simply not exist, in which case
+// nothing happens. Retire the layer by deleting that file and pushing.
+async function loadAugustSamples(layersCtl) {
+  let fc;
+  try {
+    const r = await fetch('data/august-samples.geojson');
+    if (!r.ok) return;
+    fc = await r.json();
+  } catch { return; }
+  if (!fc || !fc.features || !fc.features.length) return;
+
+  const lyr = L.geoJSON(fc, {
+    pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+      // Vivid cyan: deliberately alien to every palette in the app, so it
+      // reads as "temporary annotation", and clashes with nothing.
+      radius: 8, color: '#003049', weight: 2.5,
+      fillColor: '#00C2FF', fillOpacity: 0.95,
+    }),
+    onEachFeature: (f, layer) => {
+      const p = f.properties || {};
+      const rows = Object.entries(p)
+        .filter(([, v]) => v !== null && v !== '' && v !== undefined)
+        .map(([k, v]) => `<div class="muted small">${escapeHtml(k)}: <strong>${escapeHtml(String(v))}</strong></div>`)
+        .join('');
+      layer.bindPopup(`<div class="fire-popup"><h3>August sample</h3>${rows ||
+        '<div class="muted small">(no attributes)</div>'}</div>`);
+    },
+  }).addTo(map);
+
+  layersCtl.addOverlay(lyr, `August samples (${fc.features.length})`);
 }
 
 // ── fire index ────────────────────────────────────────────────────────────
