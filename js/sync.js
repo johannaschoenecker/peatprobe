@@ -60,11 +60,45 @@ async function init() {
 }
 
 // ── auth ──────────────────────────────────────────────────────────────────
+/**
+ * Popup first; full-page redirect where popups cannot work. Installed
+ * home-screen apps (which our own instructions recommend!) routinely block
+ * or break auth popups - the tap on Sync then dies before any sign-in UI
+ * appears, which reads as "I never had to sign in".
+ * Returns null when redirecting: the page is about to navigate away.
+ */
 export async function signIn() {
   const { auth, authMod } = await init();
   const provider = new authMod.GoogleAuthProvider();
-  const cred = await authMod.signInWithPopup(auth, provider);
-  return cred.user;
+  try {
+    const cred = await authMod.signInWithPopup(auth, provider);
+    return cred.user;
+  } catch (err) {
+    const c = (err && err.code) || '';
+    const popupBroken = [
+      'auth/popup-blocked',
+      'auth/cancelled-popup-request',
+      'auth/operation-not-supported-in-this-environment',
+    ].includes(c);
+    if (!popupBroken) throw err;   // e.g. user closed it on purpose
+    await authMod.signInWithRedirect(auth, provider);
+    return null;
+  }
+}
+
+/**
+ * Complete a redirect sign-in when the app comes back from Google.
+ * Cheap no-op on every normal launch.
+ */
+export async function completeRedirect() {
+  if (!isEnabled()) return null;
+  const { auth, authMod } = await init();
+  try {
+    const res = await authMod.getRedirectResult(auth);
+    return (res && res.user) || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function signOut() {

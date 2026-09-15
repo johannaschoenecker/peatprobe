@@ -101,6 +101,17 @@ async function boot() {
   const surveyor = await DB.getMeta('surveyor');
   if (surveyor) $('#surveyor-input').value = surveyor;
 
+  // Landing back from a redirect sign-in: finish it, then sync whatever was
+  // stuck waiting for exactly this.
+  if (Sync.isEnabled() && navigator.onLine) {
+    Sync.completeRedirect().then((u) => {
+      if (u) {
+        toast(`Signed in${u.email ? ' as ' + u.email : ''}. Syncing…`, 3500);
+        doSync({ quiet: true });
+      }
+    }).catch(() => {});
+  }
+
   // The Review tab exists only for admins - checked once the auth state is
   // known. The Firestore rules are the real gate; this is just the door.
   if (Sync.isEnabled() && navigator.onLine) {
@@ -699,8 +710,17 @@ async function doSync(opts = {}) {
   const original = btn.textContent;
   try {
     let user = await Sync.currentUser();
-    if (!user) { btn.textContent = 'Signing in…'; user = await Sync.signIn();
-      Sync.isAdminUser().then((ok) => { if (ok) $('#tab-review').hidden = false; }).catch(() => {}); }
+    if (!user) {
+      btn.textContent = 'Signing in…';
+      user = await Sync.signIn();
+      if (!user) {
+        // Redirect flow: the page is navigating to Google; sync resumes
+        // automatically when it returns.
+        toast('Taking you to Google to sign in…', 4000);
+        return;
+      }
+      Sync.isAdminUser().then((ok) => { if (ok) $('#tab-review').hidden = false; }).catch(() => {});
+    }
 
     btn.textContent = 'Uploading…';
     const { pushed, failed } = await Sync.pushPending(({ done, total }) => {
