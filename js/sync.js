@@ -252,6 +252,45 @@ export async function pushPending(onProgress) {
 }
 
 // ── pull ──────────────────────────────────────────────────────────────────
+async function upsertRemote(r) {
+  const existing = await DB.getPoint(r.uuid);
+  if (existing && existing.status === 'pending') return false; // never clobber unsynced local edits
+  await DB.putPoint({
+    uuid: r.uuid,
+    fireId: r.fireId, fireName: r.fireName,
+    lat: r.lat, lon: r.lon, accuracyM: r.accuracyM,
+    depths: r.depths || [], depthMean: r.depthMean,
+    combustion: r.combustion || null,
+    gridId: r.gridId || null, gridDistM: r.gridDistM ?? null,
+    comment: r.comment, surveyor: r.surveyor,
+    photoUrl: r.photoUrl, photoUrls: r.photoUrls || [],
+    photoCount: r.photoCount ?? (r.photoUrl ? 1 : 0), hasPhoto: !!r.photoUrl,
+    userId: r.userId,
+    status: 'synced', remote: true,
+    createdAt: r.createdAt, syncedAt: r.syncedAt,
+  });
+  return true;
+}
+
+/**
+ * Everyone's most recent measurements, regardless of packs - so a colleague's
+ * campaign appears on your map without you downloading their fire first.
+ */
+export async function pullRecent(max = 300) {
+  if (!isEnabled()) return 0;
+  if (!(await currentUser())) return 0;
+  const { db, fsMod } = await init();
+  const q = fsMod.query(
+    fsMod.collection(db, 'measurements'),
+    fsMod.orderBy('createdAt', 'desc'),
+    fsMod.limit(max)
+  );
+  const snap = await fsMod.getDocs(q);
+  let n = 0;
+  for (const d of snap.docs) { if (await upsertRemote(d.data())) n++; }
+  return n;
+}
+
 /** Fetch everyone's points for the fires this device has packs for. */
 export async function pullForFires(fireIds) {
   if (!isEnabled() || !fireIds.length) return 0;
@@ -266,26 +305,7 @@ export async function pullForFires(fireIds) {
       fsMod.where('fireId', 'in', chunk)
     );
     const snap = await fsMod.getDocs(q);
-    for (const d of snap.docs) {
-      const r = d.data();
-      const existing = await DB.getPoint(r.uuid);
-      if (existing && existing.status === 'pending') continue; // never clobber unsynced local edits
-      await DB.putPoint({
-        uuid: r.uuid,
-        fireId: r.fireId, fireName: r.fireName,
-        lat: r.lat, lon: r.lon, accuracyM: r.accuracyM,
-        depths: r.depths || [], depthMean: r.depthMean,
-        combustion: r.combustion || null,
-        gridId: r.gridId || null, gridDistM: r.gridDistM ?? null,
-        comment: r.comment, surveyor: r.surveyor,
-        photoUrl: r.photoUrl, photoUrls: r.photoUrls || [],
-        photoCount: r.photoCount ?? (r.photoUrl ? 1 : 0), hasPhoto: !!r.photoUrl,
-        userId: r.userId,
-        status: 'synced', remote: true,
-        createdAt: r.createdAt, syncedAt: r.syncedAt,
-      });
-      n++;
-    }
+    for (const d of snap.docs) { if (await upsertRemote(d.data())) n++; }
   }
   return n;
 }

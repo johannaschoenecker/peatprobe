@@ -64,13 +64,19 @@
   <!-- ══════════ MY DATA ══════════ -->
   <section id="view-data" class="view">
     <div class="pane">
-      <h2>My measurements</h2>
+      <h2>Measurements &amp; sync</h2>
       <div class="row">
         <button id="btn-sync" class="btn btn--primary">Sync now</button>
         <button id="btn-export" class="btn">Export CSV</button>
       </div>
       <p class="muted small" id="sync-note"></p>
       <p class="muted small" id="auth-line" hidden></p>
+      <div id="campaign-block" hidden>
+        <h2 style="margin-top:22px">Recent campaigns</h2>
+        <p class="muted small">Everyone's sampling, newest first — tap to fly there.</p>
+        <ul id="campaign-list" class="fire-list"></ul>
+      </div>
+      <h2 style="margin-top:22px">All measurements</h2>
       <ul id="point-list" class="point-list"></ul>
     </div>
   </section>

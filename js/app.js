@@ -651,7 +651,45 @@ async function refreshPoints() {
   renderPointList();
 }
 
+function renderCampaigns() {
+  const block = $('#campaign-block');
+  const ul = $('#campaign-list');
+  const groups = new Map();
+  for (const p of state.points) {
+    const key = p.fireId || 'unassigned';
+    let g = groups.get(key);
+    if (!g) groups.set(key, g = { fireId: p.fireId, name: p.fireName || 'Outside mapped fires',
+      n: 0, latest: 0, earliest: Infinity, who: new Set(), lat: p.lat, lon: p.lon });
+    g.n++; g.latest = Math.max(g.latest, p.createdAt || 0);
+    g.earliest = Math.min(g.earliest, p.createdAt || Infinity);
+    g.who.add(p.surveyor || p.userId || '?');
+  }
+  const rows = [...groups.values()].sort((a, b) => b.latest - a.latest).slice(0, 10);
+  if (!rows.length) { block.hidden = true; return; }
+  block.hidden = false;
+  ul.innerHTML = '';
+  const d = (t) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  for (const g of rows) {
+    const li = document.createElement('li');
+    li.className = 'fire-card';
+    const span = d(g.earliest) === d(g.latest) ? d(g.latest) : `${d(g.earliest)} – ${d(g.latest)}`;
+    li.innerHTML = `<div class="fire-card__top"><div>
+        <p class="fire-card__name">${esc(g.name)}</p>
+        <div class="fire-card__meta">${g.n} point(s) · ${span} · ${g.who.size} surveyor(s)</div>
+      </div><span class="badge badge--ready">Sampled</span></div>`;
+    li.style.cursor = 'pointer';
+    li.addEventListener('click', () => {
+      showTab('map');
+      const idx = MapView.getFireIndex();
+      const f = g.fireId && idx && idx.features.find(x => x.properties.id === g.fireId);
+      if (f) MapView.zoomToFire(f); else MapView.flyTo(g.lat, g.lon, 14);
+    });
+    ul.appendChild(li);
+  }
+}
+
 function renderPointList() {
+  renderCampaigns();
   const ul = $('#point-list');
   if (!state.points.length) {
     ul.innerHTML = '<li class="muted">No measurements yet. Open the map and tap <strong>+ Record</strong>.</li>';
@@ -773,6 +811,8 @@ async function doSync(opts = {}) {
 
     const fireIds = [...state.packs.keys()];
     if (fireIds.length) { btn.textContent = 'Fetching…'; await Sync.pullForFires(fireIds); }
+    btn.textContent = 'Fetching recent…';
+    try { await Sync.pullRecent(300); } catch {}
 
     await refreshPoints();
     updateSyncPill();
