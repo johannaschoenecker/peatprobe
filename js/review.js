@@ -19,16 +19,30 @@ const fmtDate = (t) => t ? new Date(t).toLocaleString('en-GB',
   { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '?';
 
 /**
- * Coordinates written in free text: "57.12345, -3.54321" with comma, space
- * or semicolon between, or inside a pasted maps URL. Requires >= 3 decimal
- * places (so depth readings never match) and must land in the UK bbox.
- * Surveyors write these when their GPS fails and they place the point by eye.
+ * Coordinates written in free text. Two formats surveyors actually use:
+ *   decimal  "57.12345, -3.54321"       (>= 3 decimals, so depth readings
+ *                                        never match)
+ *   DMS      53°29'43.3"N 1°59'19.1"W   (what Google Maps shows on long-press
+ *                                        — the field norm when GPS fails)
+ * Both must land in the UK bbox. Surveyors write these when their GPS fails
+ * and they place the point by eye.
  */
 export function coordsInText(text) {
   if (!text) return null;
-  const m = String(text).match(/(-?\d{1,2}\.\d{3,})\s*[,;\s]\s*(-?\d{1,2}\.\d{3,})/);
-  if (!m) return null;
-  const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
+  const t = String(text);
+  let lat = null, lon = null;
+  const dec = t.match(/(-?\d{1,2}\.\d{3,})\s*[,;\s]\s*(-?\d{1,2}\.\d{3,})/);
+  const dms = t.match(
+    /(\d{1,2})°\s*(\d{1,2})['′]\s*([\d.]+)["″]?\s*([NS])[,;\s]+(\d{1,3})°\s*(\d{1,2})['′]\s*([\d.]+)["″]?\s*([EW])/);
+  if (dms) {
+    lat = (+dms[1]) + (+dms[2]) / 60 + (+dms[3]) / 3600;
+    if (dms[4] === 'S') lat = -lat;
+    lon = (+dms[5]) + (+dms[6]) / 60 + (+dms[7]) / 3600;
+    if (dms[8] === 'W') lon = -lon;
+    lat = +lat.toFixed(6); lon = +lon.toFixed(6);
+  } else if (dec) {
+    lat = parseFloat(dec[1]); lon = parseFloat(dec[2]);
+  } else return null;
   if (lat > 49 && lat < 61 && lon > -9 && lon < 2.5) return { lat, lon };
   return null;
 }
