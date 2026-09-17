@@ -123,8 +123,13 @@ export async function initMap(opts) {
     maxClusterRadius: 45, showCoverageOnHover: false, chunkedLoading: true,
   });
 
+  // Measurements cluster late: transect points sit ~100 m apart, and a 40 px
+  // radius was folding them into count bubbles a couple of zooms too early.
+  // From zoom 14 in they are always individual dots; further out a tight
+  // radius only merges points that genuinely overlap on screen.
   pointsLayer = L.markerClusterGroup({
-    maxClusterRadius: 40, showCoverageOnHover: false, chunkedLoading: true,
+    maxClusterRadius: 22, disableClusteringAtZoom: 14,
+    spiderfyOnMaxZoom: false, showCoverageOnHover: false, chunkedLoading: true,
   }).addTo(map);
 
   dnbrGroup = L.layerGroup();
