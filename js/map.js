@@ -125,10 +125,10 @@ export async function initMap(opts) {
 
   // Measurements cluster late: transect points sit ~100 m apart, and a 40 px
   // radius was folding them into count bubbles a couple of zooms too early.
-  // From zoom 14 in they are always individual dots; further out a tight
+  // From zoom 12 in they are always individual dots; further out a tight
   // radius only merges points that genuinely overlap on screen.
   pointsLayer = L.markerClusterGroup({
-    maxClusterRadius: 22, disableClusteringAtZoom: 14,
+    maxClusterRadius: 22, disableClusteringAtZoom: 12,
     spiderfyOnMaxZoom: false, showCoverageOnHover: false, chunkedLoading: true,
   }).addTo(map);
 
