@@ -156,6 +156,44 @@ export async function fetchPending(max = 50) {
     .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 }
 
+/**
+ * Admin: correct a measurement's location and its derived fire/grid fields —
+ * used when a surveyor's GPS failed and the true coordinates were written in
+ * the comment. Leaves an audit trail on the document.
+ */
+export async function setLocation(uuid, fields) {
+  const user = await currentUser();
+  if (!user) throw new Error('Sign in first');
+  await user.getIdToken(true).catch(() => {});
+  const { db, fsMod } = await init();
+  await fsMod.updateDoc(fsMod.doc(db, 'measurements', uuid), {
+    ...fields,
+    locationSource: 'comment-coordinates',
+    locationCorrectedAt: Date.now(),
+    locationCorrectedBy: user.uid,
+  });
+}
+
+/** Every measurement in the database, paged — for the admin backup export. */
+export async function fetchAll(onPage) {
+  const { db, fsMod } = await init();
+  const out = [];
+  let cursor = null;
+  for (;;) {
+    const base = fsMod.collection(db, 'measurements');
+    const q = cursor
+      ? fsMod.query(base, fsMod.orderBy('createdAt'), fsMod.startAfter(cursor), fsMod.limit(500))
+      : fsMod.query(base, fsMod.orderBy('createdAt'), fsMod.limit(500));
+    const snap = await fsMod.getDocs(q);
+    if (snap.empty) break;
+    for (const d of snap.docs) out.push(d.data());
+    cursor = snap.docs[snap.docs.length - 1];
+    onPage && onPage(out.length);
+    if (snap.size < 500) break;
+  }
+  return out;
+}
+
 export async function setStatus(uuid, status) {
   const user = await currentUser();
   if (!user) throw new Error('Sign in first');

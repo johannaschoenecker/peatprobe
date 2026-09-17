@@ -293,3 +293,10 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--ember);outline-o
 .nav-hint{margin:10px 0 0;color:#9C8875;font-size:13px;min-height:2.6em}
 .nav-stop{margin-top:20px;background:rgba(255,255,255,.12);color:#F6F1E8;border:0}
 body.nav-open{overflow:hidden}
+
+/* review: surveyor comment + location-fix offer */
+.review-card__comment{font-size:14px;font-style:italic;color:var(--ink);
+  background:var(--paper);border-left:3px solid var(--line);
+  padding:6px 10px;margin:8px 0 0;border-radius:0 6px 6px 0}
+.review-card__fixloc{margin-top:8px}
+.review-card__fixloc .btn{white-space:normal;text-align:left;line-height:1.35}

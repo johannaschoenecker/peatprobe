@@ -359,6 +359,50 @@ function wireButtons() {
   $('#btn-sync').addEventListener('click', doSync);
   $('#sync-pill').addEventListener('click', () => showTab('data'));
   $('#btn-review-reload').addEventListener('click', openReviewQueue);
+  $('#btn-backup').addEventListener('click', downloadBackup);
+}
+
+// ══════════════════════════════════════════════════════════ backup (admin)
+function saveBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/**
+ * Full-database export: every measurement, every status, as JSON (lossless,
+ * for restoring) and CSV (for spreadsheets/R). Photos are not downloaded -
+ * their Storage URLs are in both files.
+ */
+async function downloadBackup() {
+  const st = $('#backup-status');
+  try {
+    st.textContent = 'Fetching…';
+    const rows = await Sync.fetchAll((n) => { st.textContent = `Fetching… ${n}`; });
+    if (!rows.length) { st.textContent = 'Database is empty.'; return; }
+    const day = new Date().toISOString().slice(0, 10);
+    saveBlob(new Blob([JSON.stringify(rows, null, 1)], { type: 'application/json' }),
+             `peatprobe-backup-${day}.json`);
+    const cols = ['uuid', 'status', 'lat', 'lon', 'accuracyM', 'depthMean', 'depths',
+      'combustion', 'gridId', 'gridDistM', 'fireId', 'fireName', 'comment', 'surveyor',
+      'userEmail', 'createdAt', 'syncedAt', 'locationSource', 'photoUrls'];
+    const cell = (r, c) => {
+      let v = r[c];
+      if (Array.isArray(v)) v = v.join('; ');
+      if ((c === 'createdAt' || c === 'syncedAt') && v) v = new Date(v).toISOString();
+      return `"${String(v ?? '').replace(/"/g, '""')}"`;
+    };
+    const csv = [cols.join(',')]
+      .concat(rows.map(r => cols.map(c => cell(r, c)).join(',')))
+      .join('\r\n');
+    saveBlob(new Blob(['﻿' + csv], { type: 'text/csv' }),
+             `peatprobe-backup-${day}.csv`);
+    st.textContent = `Saved ${rows.length} measurement(s) as JSON + CSV.`;
+  } catch (e) {
+    st.textContent = `Backup failed: ${e.message || e}`;
+  }
 }
 
 // ══════════════════════════════════════════════════════════ fire detail
@@ -771,6 +815,31 @@ async function openReviewQueue() {
     await Review.open(host, {
       onShowOnMap: (r) => { showTab('map'); MapView.flyTo(r.lat, r.lon, 16); },
       onDecided: (r, status) => toast(status === 'verified' ? 'Approved.' : 'Rejected.', 1500),
+      onRelocate: async (r, c) => {
+        // The fire and grid node were derived from the WRONG position, so
+        // re-derive both at the corrected one before writing.
+        const hit = MapView.findFireNear(c.lat, c.lon, 100);
+        const fire = hit && hit.feature;
+        const fields = {
+          lat: c.lat, lon: c.lon,
+          fireId: fire ? fire.properties.id : null,
+          fireName: fire ? Packs.fireName(fire.properties) : null,
+          gridId: null, gridDistM: null,
+        };
+        if (fire) {
+          const node = await Grid.nearestNode(fire.properties.id, c.lat, c.lon)
+            .catch(() => null);
+          if (node && node.distM <= GRID_ATTACH_M) {
+            fields.gridId = node.id;
+            fields.gridDistM = Math.round(node.distM);
+          }
+        }
+        await Sync.setLocation(r.uuid, fields);
+        const local = await DB.getPoint(r.uuid);
+        if (local) { Object.assign(local, fields); await DB.putPoint(local); await refreshPoints(); }
+        toast(`Moved to ${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}` +
+              (fields.gridId ? ` · grid ${fields.gridId}` : ''), 3500);
+      },
     });
   } catch (e) {
     // Diagnostic-rich failure: say WHO the request ran as, so a rules problem

@@ -18,7 +18,27 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
 const fmtDate = (t) => t ? new Date(t).toLocaleString('en-GB',
   { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '?';
 
-export function renderQueue(host, records, { onDecide, onShowOnMap }) {
+/**
+ * Coordinates written in free text: "57.12345, -3.54321" with comma, space
+ * or semicolon between, or inside a pasted maps URL. Requires >= 3 decimal
+ * places (so depth readings never match) and must land in the UK bbox.
+ * Surveyors write these when their GPS fails and they place the point by eye.
+ */
+export function coordsInText(text) {
+  if (!text) return null;
+  const m = String(text).match(/(-?\d{1,2}\.\d{3,})\s*[,;\s]\s*(-?\d{1,2}\.\d{3,})/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
+  if (lat > 49 && lat < 61 && lon > -9 && lon < 2.5) return { lat, lon };
+  return null;
+}
+
+const distM = (aLat, aLon, bLat, bLon) => {
+  const mLat = 111320, mLon = 111320 * Math.cos((aLat * Math.PI) / 180);
+  return Math.hypot((bLat - aLat) * mLat, (bLon - aLon) * mLon);
+};
+
+export function renderQueue(host, records, { onDecide, onShowOnMap, onRelocate }) {
   if (!records.length) {
     host.innerHTML = '<p class="muted">Nothing waiting for review. ✓</p>';
     return;
@@ -49,6 +69,8 @@ export function renderQueue(host, records, { onDecide, onShowOnMap }) {
           ${r.accuracyM != null ? ` · ±${Math.round(r.accuracyM)} m` : ''}</div>
         ${r.gridId ? `<div class="muted small">Grid ${esc(r.gridId)} (${r.gridDistM ?? '?'} m)</div>`
                    : '<div class="muted small">Not at a grid node</div>'}
+        ${r.comment ? `<div class="review-card__comment">“${esc(r.comment)}”</div>` : ''}
+        <div class="review-card__fixloc"></div>
         <div class="review-card__actions">
           <button class="btn btn--sm" data-act="map">Map</button>
           <button class="btn btn--sm" data-act="reject">Reject</button>
@@ -58,6 +80,31 @@ export function renderQueue(host, records, { onDecide, onShowOnMap }) {
 
     card.querySelector('[data-act="map"]').addEventListener('click',
       () => onShowOnMap(r));
+
+    // GPS-failure rescue: if the comment carries coordinates meaningfully far
+    // from the recorded position, offer to move the point there.
+    const cc = coordsInText(r.comment);
+    if (cc && onRelocate) {
+      const d = distM(r.lat, r.lon, cc.lat, cc.lon);
+      if (d > 15) {
+        const box = card.querySelector('.review-card__fixloc');
+        box.innerHTML = `<button class="btn btn--sm" data-act="fixloc">📍 Move to
+          ${cc.lat.toFixed(5)}, ${cc.lon.toFixed(5)} from comment
+          (${d < 1000 ? Math.round(d) + ' m' : (d / 1000).toFixed(1) + ' km'} away)</button>`;
+        box.querySelector('[data-act="fixloc"]').addEventListener('click', async (e) => {
+          e.target.disabled = true;
+          try {
+            await onRelocate(r, cc);
+            r.lat = cc.lat; r.lon = cc.lon;   // so the Map button flies right
+            box.innerHTML = '<div class="muted small">✓ Moved to the coordinates from the comment.</div>';
+          } catch (err) {
+            e.target.disabled = false;
+            box.insertAdjacentHTML('beforeend',
+              `<div class="form-error small">${esc(err.message)}</div>`);
+          }
+        });
+      }
+    }
     for (const [act, status] of [['verify', 'verified'], ['reject', 'rejected']]) {
       card.querySelector(`[data-act="${act}"]`).addEventListener('click', async (e) => {
         const btns = card.querySelectorAll('button');
@@ -82,6 +129,7 @@ export async function open(host, helpers) {
   const records = await Sync.fetchPending(50);
   renderQueue(host, records, {
     onShowOnMap: helpers.onShowOnMap,
+    onRelocate: helpers.onRelocate,
     onDecide: async (r, status) => {
       await Sync.setStatus(r.uuid, status);
       helpers.onDecided && helpers.onDecided(r, status);
